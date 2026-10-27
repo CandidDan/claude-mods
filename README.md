@@ -29,6 +29,10 @@ ln -s ~/Projects/claude-mods/skills/design-standards-audit ~/.claude/skills/desi
 /plugin install design-standards@candiddan
 ```
 
+## Cloud sessions
+
+Cloud sessions don't load plugins from your machine or from a repo's `.claude/settings.json`. Create your own cloud environment on claude.ai/code and paste [cloud/setup.sh](cloud/setup.sh) in as its setup script.
+
 ## Codex
 
 See [design-standards/README.md](design-standards/README.md#codex).

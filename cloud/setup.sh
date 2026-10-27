@@ -1,0 +1,8 @@
+#!/bin/bash
+# Setup script for a Claude Code cloud environment: installs the day and
+# handoff mods so they load from the first prompt. Paste into the environment's
+# setup script field on claude.ai/code. Safe to run again.
+set -e
+claude plugin marketplace add CandidDan/claude-mods || claude plugin marketplace update candiddan
+claude plugin install day@candiddan --scope user
+claude plugin install handoff@candiddan --scope user
