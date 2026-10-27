@@ -1,0 +1,31 @@
+---
+name: "design-standards"
+description: "Dan's Design Standards v2.1 (core). Load for any design work: UI, screens, pages, email, social, posters, mockups, in Claude Design, Claude Code, Codex or chat."
+---
+
+# Design Standards v2.1 — core
+
+Source of truth: https://claude.ai/code/artifact/00f213aa-f5f1-4582-a654-770b4589b242. If it shows a newer version than v2.1, tell Dan this skill is stale. Full rule text, WCAG criteria, check procedures, critique rubric and appendix: load skill `design-standards-audit` (required for minor/major checks and any critique).
+
+## Stance
+Creativity is at the heart of the work. Unless the brief says otherwise, every design is human-centred, considered and intentional, and has a character of its own. S rules protect people and stop AI defaults; they never decide the look. Passing every rule while looking like anyone's = fail (V-5 logo-swap test).
+
+## Flow
+1. Size: **T**rivial (copy, token tweak, fix, no new UI) · **Mi**nor (new component/screen/state in existing flow) · **Ma**jor (new product/flow/visual direction/redesign). Unsure → size up.
+2. Brief (Ma, Mi; T inherits): I-1 who, real person + moment · I-2 job, one sentence · I-3 the one thing seen/done first · I-4 subject's world; existing brand/system → inherit · I-5 clarity or impression wins ties (clarity always applies) · I-6 deliverable, platforms W/A/E/S/P, size · I-7 unverified assumption + test · **I-8 character**: 3 adjectives the audience would use + one reference from outside software (object, place, craft, era) + a **signature** (one ownable element: type treatment, illustration, layout system, motion language, material or voice) recognisable with the logo covered · **I-9 the risk**: the one choice a template would never make, and why it serves I-1–I-3.
+3. Build to S (never waived) and H (waiver: propose; Dan approves; log in `decisions.md`: date · ID · what · why · approver).
+4. Checks: T = V-2 on changed area + agent-provable S on changes. Mi = + V-3, V-4 agent steps, V-5. Ma = all, incl. V-1 (one direction deliberately goes too far), V-4 Dan steps, V-6.
+5. Hand-off starts with **V-7**: `ID | pass/fail/n.a./needs Dan | evidence`. No failed S ships.
+
+## Evidence
+Prove: screenshots per width, a11y scans, contrast maths, browser keyboard walk, Lighthouse lab, token/lint reports. Mark **needs Dan** (never pass, never invent): real device, screen reader, user sessions, field perf, final S-32/H-21 call on Ma.
+
+Precedence: S > existing brand/system > platform conventions > H. Brand colour fails S-1 as text → keep for large text/fills/non-text; derive darker/lighter shade for text. Inheriting a strict system → character comes from within that system.
+
+## S — never waived (WCAG 2.2 AA in full = S-0)
+S-1 text 4.5:1, large 3:1 · S-2 UI/focus/graphics 3:1 · S-3 targets ≥24px · S-4 keyboard, no traps · S-5 focus visible, unobscured · S-6 reflow 320px, 200% text, text-spacing · S-7 alt text · S-8 semantics, name/role/value, status announced · S-9 visible labels, text errors + fix, no re-entry, no puzzle sign-in · S-10 no surprise context change; help in same place · S-11 colour never alone · S-12 reduced motion, pausable motion >5s, no autoplay audio, captions, ≤3 flashes/s, drag alternative, dismissible hovers, extendable time limits · S-13 I-2 job end to end on every I-6 platform · S-14 default/focus/active/disabled (+hover on pointer, loading/error) states; links/buttons distinct · S-15 ack <100ms, progress >1s, estimate or leave >10s · S-16 destructive = undo or confirm with consequence · S-17 modal focus in/out, Esc or back closes, ≤1 confirm on top, never non-critical · S-18 entered data survives errors/back · S-19 empty/loading/error/partial/success + longest content (+30% if translated) · S-20 same component = same behaviour + name · S-21 user's words, not system's · S-22 buttons say what happens; name kept through flow · S-23 errors: what broke + next step · S-24 no dark patterns · S-25 cost/commitment/data use stated before commit · S-26 nothing fake presented as real, incl. AI people/quotes · S-27 web lab LCP≤2.5s TBT≤200ms CLS≤0.1; field p75 LCP/INP≤200ms/CLS · S-28 app cold start ≤2s, no stutter, offline state · S-29 tokens: ≤8 spacing, ≤7 type steps, nothing off-scale · S-30 colours = role tokens; dark values pass S-1/2 · S-31 body ≥16px web/email, platform default app, ≥14px dense, nothing <12px, ≤75 chars/line · S-32 ornament never misleads: nothing decorative misleads, hides content or competes with I-3; 01/02/03 only for real sequences · S-33 2-second test shows I-3.
+
+## H — house style (key points)
+New brands: mood first, colours from named scene objects (semantic colours exempt). Softer humane type, contrast from weight/scale. Line-height 1.4–1.6 body. Roles: ground, ink, ONE action accent, ≤2 supporting; expressive colour beyond that is welcome when it IS the I-8 signature and never clashes with action/state meaning. Pure white ground; cream/off-white only if the mood demands, never default. Ink #000 or deliberate scene dark. Avoid warm off-white × red/orange/copper/terracotta. Info on surfaces; cards only for actionable units. Columns align across rows. Touch 44px. Validate on blur/submit. No apologetic errors. Removal pass (H-17): keep what adds information, warmth or character; the signature is exempt. Human touch (H-18) from real content (voice, work, photos, failures), as much as content honestly offers. Motion (H-19) needs a job: orient, feedback or signature; a motion language is fine when it is the signature. **H-21 earned ornament**: ornament, texture, illustration and structure welcome when they build the signature or carry information, never from habit; log one line per ornament; reviewer judges.
+
+**Tells (H-20) — replace, don't just remove** (replace each with an I-8 choice): cream + serif + terracotta · near-black + acid accent · broadsheet hairlines · identical shadowed rounded cards, gradient washes · big unsourced stat · ALL-CAPS eyebrows · one accented headline word · A · B · C meta · "WORD — fragment" · decorative mono · → on every link · fade-up everywhere, hover lift everywhere · coloured left-border bars · icon in tinted circle per heading · pills on non-stateful content · blobs, glows, grain, orbs · **neutral-safe**: clean, white, well spaced, interchangeable; passes everything, says nothing.

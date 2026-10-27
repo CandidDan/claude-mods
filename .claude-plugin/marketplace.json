@@ -1,0 +1,24 @@
+{
+  "name": "candiddan",
+  "owner": {
+    "name": "CandidDan"
+  },
+  "description": "Dan's Claude Code mods",
+  "plugins": [
+    {
+      "name": "day",
+      "source": "./day",
+      "description": "Live Today pane: next hours and what to tackle, replanned from the session"
+    },
+    {
+      "name": "handoff",
+      "source": "./handoff",
+      "description": "HANDOFF.md written at session end and picked up by the next session"
+    },
+    {
+      "name": "design-standards",
+      "source": "./design-standards",
+      "description": "Design Standards v2.1: core skill for every design task, audit skill for checks and critiques"
+    }
+  ]
+}

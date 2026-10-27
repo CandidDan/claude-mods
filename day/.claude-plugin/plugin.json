@@ -1,0 +1,36 @@
+{
+  "name": "day",
+  "version": "0.1.3",
+  "description": "A live pane showing what the day looks like and what to tackle next, replanned from this session's own context after every turn.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "horizonHours": {
+      "type": "number",
+      "title": "Horizon (hours)",
+      "description": "Hours ahead the plan covers by default (/today eod widens it to the end of the day)",
+      "default": 4
+    },
+    "refreshMinutes": {
+      "type": "number",
+      "title": "Timer refresh (minutes)",
+      "description": "Replan on a timer this often while the session is open; 0 turns the timer off (turn ends still replan)",
+      "default": 45
+    },
+    "timezone": {
+      "type": "string",
+      "title": "Timezone",
+      "description": "IANA timezone for times in the plan; empty uses the machine's",
+      "default": ""
+    },
+    "dayEnds": {
+      "type": "string",
+      "title": "Day ends (HH:MM)",
+      "description": "When your working day ends, HH:MM, used for /today eod",
+      "default": "17:30"
+    }
+  },
+  "author": {
+    "name": "Dan",
+    "url": "https://github.com/CandidDan"
+  }
+}

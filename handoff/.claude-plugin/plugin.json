@@ -1,0 +1,27 @@
+{
+  "name": "handoff",
+  "version": "0.1.1",
+  "description": "Writes HANDOFF.md from the session transcript on /handoff and at session end; the next session in that folder picks it up as context.",
+  "author": { "name": "Dan", "url": "https://github.com/CandidDan" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "file": {
+      "type": "string",
+      "title": "Handoff file",
+      "description": "Path of the handoff file, relative to the session's folder",
+      "default": "HANDOFF.md"
+    },
+    "autoOnEnd": {
+      "type": "boolean",
+      "title": "Write at session end",
+      "description": "Write the handoff automatically when the session ends (not on /clear)",
+      "default": true
+    },
+    "minTurns": {
+      "type": "number",
+      "title": "Minimum turns",
+      "description": "Sessions with fewer completed turns are not worth a handoff",
+      "default": 3
+    }
+  }
+}
