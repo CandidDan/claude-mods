@@ -1,0 +1,10 @@
+{
+  "name": "reflect",
+  "version": "0.1.0",
+  "description": "When you correct Claude in a way that should stick, offers to save it as a one-line rule in this project's CLAUDE.md or your own.",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Dan",
+    "url": "https://github.com/CandidDan"
+  }
+}

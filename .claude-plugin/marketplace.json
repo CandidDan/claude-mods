@@ -13,7 +13,22 @@
     {
       "name": "handoff",
       "source": "./handoff",
-      "description": "HANDOFF.md written at session end and picked up by the next session"
+      "description": "HANDOFF.md written at session end, on /handoff, or when a long chat offers it; picked up by the next session or after /clear"
+    },
+    {
+      "name": "prompt-coach",
+      "source": "./prompt-coach",
+      "description": "Rates each prompt before it is sent, says what is missing, and offers to improve it"
+    },
+    {
+      "name": "cache-clock",
+      "source": "./cache-clock",
+      "description": "Countdown above the prompt until the chat's prompt cache goes cold, with an opt-in Keep warm"
+    },
+    {
+      "name": "reflect",
+      "source": "./reflect",
+      "description": "Offers to save your corrections as one-line rules in CLAUDE.md"
     },
     {
       "name": "design-standards",

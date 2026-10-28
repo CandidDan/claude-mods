@@ -1,0 +1,24 @@
+{
+  "name": "prompt-coach",
+  "version": "0.1.0",
+  "description": "Rates each prompt before it is sent, says what is missing when it is weak, and offers to improve it with a question or two. Long brain dumps get shaped into a brief.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "mode": {
+      "type": "string",
+      "title": "When to check",
+      "description": "before: rate each prompt before it is sent and offer to improve a weak one; after: send at once and show the rating above the prompt; off",
+      "default": "before"
+    },
+    "threshold": {
+      "type": "number",
+      "title": "Offer below",
+      "description": "Offer to improve a prompt rated below this score (1 to 5)",
+      "default": 4
+    }
+  },
+  "author": {
+    "name": "Dan",
+    "url": "https://github.com/CandidDan"
+  }
+}

@@ -117,3 +117,89 @@ test('an empty session says so plainly', async ($, on) => {
   const ran = await $.command.run({ command: 'handoff', args: '' })
   expect(ran.text).toContain('no conversation yet')
 })
+
+const BAND = { plugin: 'handoff', component: 'AbovePrompt' } as const
+const bandProps = { hasSurvey: false, isWorking: false, maxRows: 10, columns: 100 }
+
+/** The live context the next usage read reports, and an engine band beneath. */
+function context(on: On) {
+  const live = { tokens: 0 }
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: live.tokens, window: 1_000_000 }, rateLimits: [] } }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+  on('classic.SessionStart', () => ({}))
+  return live
+}
+
+async function bandText($: Parameters<Parameters<typeof test>[1]>[0]) {
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop', props: bandProps } as never)
+  const text = (await band.find({ type: 'Box' }))?.text ?? (await band.find({ type: 'Text' }))?.text
+  await band.unmount()
+  return text
+}
+
+async function pressBand($: Parameters<Parameters<typeof test>[1]>[0], key: string) {
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop', props: bandProps } as never)
+  await band.press({ key })
+  await band.unmount()
+}
+
+test('past 200k it offers a handoff above the prompt; Hand off writes it and /clear picks it up', async ($, on) => {
+  mock.clock(on, { now: Date.UTC(2026, 9, 28, 4, 30) })
+  const files = disk(on, {})
+  const live = context(on)
+  on('model.fork', () => ({ value: { isAnswered: true as const, text: note, usage } }))
+  await $.session.start(start)
+
+  live.tokens = 150_000
+  await $.turn.complete(turn)
+  expect(await bandText($)).toBe('engine')
+
+  live.tokens = 212_000
+  await $.turn.complete(turn)
+  expect(await bandText($)).toBe('Context 212k · hand off to a fresh chat? Hand off Not now')
+
+  await pressBand($, 'handoff')
+  expect(files['/repo/HANDOFF.md']).toContain('# Handoff · ship the day mod')
+  expect(await bandText($)).toContain('Handoff written and copied. /clear here')
+
+  const cleared = await $.classic.SessionStart({ source: 'clear' } as never)
+  expect(JSON.stringify(cleared)).toContain('ship the day mod')
+  expect(await bandText($)).toBe('engine')
+
+  // Only a handoff written in this chat comes back after /clear.
+  const again = await $.classic.SessionStart({ source: 'clear' } as never)
+  expect(JSON.stringify(again)).not.toContain('ship the day mod')
+})
+
+test('Not now waits until the chat has grown another 50k', async ($, on) => {
+  mock.clock(on)
+  disk(on, {})
+  const live = context(on)
+  await $.session.start(start)
+
+  live.tokens = 210_000
+  await $.turn.complete(turn)
+  await pressBand($, 'snooze')
+  expect(await bandText($)).toBe('engine')
+
+  live.tokens = 240_000
+  await $.turn.complete(turn)
+  expect(await bandText($)).toBe('engine')
+
+  live.tokens = 265_000
+  await $.turn.complete(turn)
+  expect(await bandText($)).toContain('Context 265k')
+})
+
+test('offerAt 0 never offers', { options: { offerAt: 0 } }, async ($, on) => {
+  mock.clock(on)
+  disk(on, {})
+  const live = context(on)
+  await $.session.start(start)
+  live.tokens = 900_000
+  await $.turn.complete(turn)
+  expect(await bandText($)).toBe('engine')
+})

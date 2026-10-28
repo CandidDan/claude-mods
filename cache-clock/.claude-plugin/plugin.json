@@ -1,0 +1,24 @@
+{
+  "name": "cache-clock",
+  "version": "0.1.0",
+  "description": "A line above the prompt counting down until this chat's prompt cache goes cold, with an opt-in Keep warm.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "ttl": {
+      "type": "string",
+      "title": "Cache length",
+      "description": "auto learns it from the chat's own replies; 5m or 1h sets it",
+      "default": "auto"
+    },
+    "keepWarmPings": {
+      "type": "number",
+      "title": "Keep warm pings",
+      "description": "Most background pings one Keep warm sends before it stops",
+      "default": 6
+    }
+  },
+  "author": {
+    "name": "Dan",
+    "url": "https://github.com/CandidDan"
+  }
+}

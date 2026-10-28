@@ -5,7 +5,10 @@ Claude Code mods (function-hook plugins).
 | mod | what |
 |---|---|
 | [day](day/) | Live **Today** pane — next hours and what to tackle next, replanned from the session |
-| [handoff](handoff/) | `HANDOFF.md` written at session end, picked up by the next session |
+| [handoff](handoff/) | `HANDOFF.md` written at session end or when a long chat offers it, picked up by the next session or after `/clear` |
+| [prompt-coach](prompt-coach/) | Rates each prompt before it's sent, says what's missing, offers to improve it |
+| [cache-clock](cache-clock/) | Countdown above the prompt until the prompt cache goes cold; opt-in **Keep warm** |
+| [reflect](reflect/) | Offers to save your corrections as one-line rules in `CLAUDE.md` |
 | [design-standards](design-standards/) | Design Standards v2.1 as skills (core + audit); not a mod, skills only |
 
 ## Cowork
@@ -26,6 +29,9 @@ ln -s ~/Projects/claude-mods/skills/design-standards-audit ~/.claude/skills/desi
 /plugin marketplace add CandidDan/claude-mods
 /plugin install day@candiddan
 /plugin install handoff@candiddan
+/plugin install prompt-coach@candiddan
+/plugin install cache-clock@candiddan
+/plugin install reflect@candiddan
 /plugin install design-standards@candiddan
 ```
 
