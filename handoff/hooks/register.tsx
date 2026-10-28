@@ -178,22 +178,33 @@ async function offerLine($: EngineInterface, e: RenderInput<'AbovePrompt'>, file
   if (e.props.hasSurvey || e.props.isWorking || !o) return null
   const { Box, Button, Text } = $.ui.resolve(e)
   if (o.kind === 'writing') return <Text dimColor>Writing the handoff…</Text>
+  // One row each: the text cuts off with an ellipsis before the buttons give way.
   if (o.kind === 'written') {
     return (
       <Box>
-        <Text dimColor>
-          Handoff written{o.copied ? ' and copied' : ''}. /clear here or start a new chat in this folder, and it's picked up.{' '}
-        </Text>
-        <Button key="dismiss" label="OK" onPress={() => void update($, offer, () => null)} />
+        <Box flexShrink={1}>
+          <Text dimColor wrap="truncate-end">
+            Handoff written{o.copied ? ' and copied' : ''}. /clear here or start a new chat in this folder, and it's picked up.
+          </Text>
+        </Box>
+        <Box flexShrink={0}>
+          <Text> </Text>
+          <Button key="dismiss" label="OK" onPress={() => void update($, offer, () => null)} />
+        </Box>
       </Box>
     )
   }
   return (
     <Box>
-      <Text dimColor>Context {k(o.tokens)} · hand off to a fresh chat? </Text>
-      <Button key="handoff" label="Hand off" onPress={() => void handOff($, file)} />
-      <Text> </Text>
-      <Button key="snooze" label="Not now" onPress={() => void snooze($)} />
+      <Box flexShrink={1}>
+        <Text dimColor wrap="truncate-end">Context {k(o.tokens)} · hand off to a fresh chat?</Text>
+      </Box>
+      <Box flexShrink={0}>
+        <Text> </Text>
+        <Button key="handoff" label="Hand off" onPress={() => void handOff($, file)} />
+        <Text> </Text>
+        <Button key="snooze" label="Not now" onPress={() => void snooze($)} />
+      </Box>
     </Box>
   )
 }

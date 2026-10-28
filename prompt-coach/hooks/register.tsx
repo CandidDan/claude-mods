@@ -1,11 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
-import type { Answer, Gap, Last, Offer, Review } from '../types'
+import type { Answer, Draft, Gap, Last, Review } from '../types'
 
 const last = atom({ plugin: 'prompt-coach', key: 'last' } as const, null as Last | null)
-// A weak prompt held back: its offer, then its questions, drawn above the prompt.
-const offer = atom({ plugin: 'prompt-coach', key: 'offer' } as const, null as Offer | null)
+// The draft in the prompt box, rated while it is typed: its rating, then its questions.
+const draft = atom({ plugin: 'prompt-coach', key: 'draft' } as const, null as Draft | null)
 
 // Shorter prompts are replies ("yes", "do the next one"); the conversation carries them.
 const MIN_WORDS = 8
@@ -14,6 +14,9 @@ const DUMP_WORDS = 120
 const MAX_QUESTIONS = 3
 const HISTORY = 100
 const REVIEW_MS = 8000
+// How often the prompt box is read, and how long it must sit still to be rated.
+const TICK_MS = 1000
+const PAUSE_MS = 1500
 const GAPS: readonly Gap[] = ['goal', 'context', 'scope', 'done', 'constraints', 'format', 'conflict']
 const GAP_WORDS: Record<Gap, string> = {
   goal: 'unclear goal',
@@ -45,6 +48,8 @@ Return JSON only, no prose, no code fences:
 {"score":<1-5>,"issues":["<what is missing, at most 8 words>"],"gaps":["goal|context|scope|done|constraints|format|conflict"],"questions":[{"q":"<question ending in ?>","options":["<likely answer>","<likely answer>"]}]}
 
 Rules:
+- A prompt that answers the last reply's questions or picks from its options ("1 a, 2 as you recommend", "go with option b") scores 5: the reply carries the context.
+- A prompt that points at something shown ("this", "the screenshot") has it attached; do not mark it down for that.
 - At most 3 issues, most important first, each naming the specific thing missing ("which page: home or pricing"), not a category.
 - At most 3 questions, only for things the person must decide; never about style or nice-to-haves. Give 2 or 3 short likely answers each.
 - Score 4 or 5: empty issues and questions.
@@ -63,18 +68,33 @@ Rules:
 let mode = 'before'
 let threshold = 3
 let lastReply = ''
+// The coach's own rewrite, filled into the box: not rated again.
 let improved = ''
-// The held prompt after Send as is: its next Enter goes through unchecked.
-let passOnce = ''
+// The box as last read, since when, the text being rated, and the last rating.
+let seen = ''
+let seenAt = 0
+let reviewing = ''
+let rated: { text: string; review: Review | null } = { text: '', review: null }
 
 const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length
 
-function context(text: string, attached = 0) {
-  const reply = lastReply ? `<last_reply>\n${lastReply.slice(-1500)}\n</last_reply>\n\n` : ''
+/** Whether a prompt is the person's own words, long enough to rate. */
+const isRateable = (text: string) => words(text) >= MIN_WORDS && !text.startsWith('/') && !MACHINE.test(text) && text !== improved.trim()
+
+/** Claude's last reply: kept from turn.complete, or read from the transcript after a restart. */
+async function reply($: EngineInterface) {
+  if (lastReply) return lastReply
+  const messages = await $.session.messages().catch(() => [])
+  if (!Array.isArray(messages)) return ''
+  return [...messages].reverse().find(m => m.role === 'assistant' && m.text.trim())?.text ?? ''
+}
+
+function context(text: string, said: string, attached = 0) {
+  const r = said ? `<last_reply>\n${said.slice(-1500)}\n</last_reply>\n\n` : ''
   const note = attached
     ? `\n\nThe person attached ${attached} image${attached > 1 ? 's' : ''} or file${attached > 1 ? 's' : ''} you cannot see. Assume ${attached > 1 ? 'they show' : 'it shows'} what the prompt refers to; do not mark the prompt down for leaning on ${attached > 1 ? 'them' : 'it'}.`
     : ''
-  return `${reply}<prompt>\n${text}\n</prompt>${note}`
+  return `${r}<prompt>\n${text}\n</prompt>${note}`
 }
 
 /** The reply as a Review, or null when it does not parse. */
@@ -102,9 +122,9 @@ function parseReview(raw: string): Review | null {
   }
 }
 
-/** Haiku's rating, or null when it fails or runs long: the prompt then goes as typed. */
+/** Haiku's rating, or null when it fails or runs long. */
 async function review($: EngineInterface, text: string, attached = 0): Promise<Review | null> {
-  const r = await $.model.complete({ model: 'haiku', system: REVIEW_SYSTEM, prompt: context(text, attached), maxTokens: 500, effort: 'low', timeoutMs: REVIEW_MS })
+  const r = await $.model.complete({ model: 'haiku', system: REVIEW_SYSTEM, prompt: context(text, await reply($), attached), maxTokens: 500, effort: 'low', timeoutMs: REVIEW_MS })
   return r.isAnswered ? parseReview(r.text) : null
 }
 
@@ -127,63 +147,79 @@ async function summary($: EngineInterface) {
 
 async function rewrite($: EngineInterface, text: string, answers: Answer[]) {
   const qa = answers.length ? `\n\n<answers>\n${answers.map(x => `Q: ${x.q}\nA: ${x.a ?? 'skipped'}`).join('\n\n')}\n</answers>` : ''
-  const r = await $.model.complete({ model: 'sonnet', system: REWRITE_SYSTEM, prompt: `${context(text)}${qa}`, maxTokens: 2000, effort: 'low', timeoutMs: 60_000 })
+  const r = await $.model.complete({ model: 'sonnet', system: REWRITE_SYSTEM, prompt: `${context(text, await reply($))}${qa}`, maxTokens: 2000, effort: 'low', timeoutMs: 60_000 })
   if (!r.isAnswered) throw new Error(r.reason)
   return r.text.trim().replace(/^```\w*\s*/, '').replace(/```\s*$/, '')
 }
 
-/** Puts the prompt back in the box and shows the offer above it; false when the box would not take it. */
-async function hold($: EngineInterface, text: string, r: Review) {
-  const filled = await $.prompt.fill({ text, mode: 'replace' }).catch(() => null)
-  if (!filled?.isFilled) return false
-  const isDump = words(text) >= DUMP_WORDS
-  await update($, offer, (): Offer => ({ text, score: r.score, issues: r.issues, isDump, questions: r.questions, phase: 'offer', step: 0, answers: [] }))
-  return true
-}
-
-async function sendAsIs($: EngineInterface) {
-  const o = await read($, offer)
-  if (!o) return
-  passOnce = o.text
-  await update($, offer, () => null)
-  $.ui.toast('Your prompt is in the box as you wrote it. Press Enter to send it.')
+/**
+ * Reads the prompt box each tick. A rating shown for older text goes as soon as
+ * the draft changes; a draft that has sat still is rated once, and a weak one
+ * shows its rating above the box. Nothing here ever holds a prompt back.
+ */
+async function watch($: EngineInterface) {
+  if (mode !== 'before') return
+  const box = (await $.prompt.read()).text
+  const now = await $.clock.now()
+  if (box !== seen) {
+    seen = box
+    seenAt = now
+    const d = await read($, draft)
+    if (d?.phase === 'offer' && d.text !== box.trim()) await update($, draft, () => null)
+    return
+  }
+  const text = box.trim()
+  if (now - seenAt < PAUSE_MS || !isRateable(text) || text === rated.text || text === reviewing) return
+  if ((await read($, draft))?.phase) return
+  reviewing = text
+  try {
+    const r = await review($, text).catch(() => null)
+    rated = { text, review: r }
+    // Typed on while it was rated: the next pause rates the new text.
+    if (!r || (await $.prompt.read()).text.trim() !== text || (await read($, draft))) return
+    if (r.score >= threshold) return
+    await update($, draft, (): Draft => ({ text, score: r.score, issues: r.issues, isDump: words(text) >= DUMP_WORDS, questions: r.questions, phase: 'offer', step: 0, answers: [] }))
+  } finally {
+    reviewing = ''
+  }
 }
 
 async function startImprove($: EngineInterface) {
-  const o = await read($, offer)
-  if (o?.phase !== 'offer') return
-  if (!o.questions.length) return finish($, o, [])
-  await update($, offer, (): Offer => ({ ...o, phase: 'asking', step: 0, answers: [] }))
+  const d = await read($, draft)
+  if (d?.phase !== 'offer') return
+  if (!d.questions.length) return finish($, d, [])
+  await update($, draft, (): Draft => ({ ...d, phase: 'asking', step: 0, answers: [] }))
 }
 
 /** Records the answer to the question showing (null: skipped) and moves on, or rewrites after the last. */
 async function answer($: EngineInterface, a: string | null) {
-  const o = await read($, offer)
-  if (o?.phase !== 'asking') return
-  const q = o.questions[o.step]
+  const d = await read($, draft)
+  if (d?.phase !== 'asking') return
+  const q = d.questions[d.step]
   if (!q) return
-  const answers = [...o.answers, { q: q.q, a }]
-  if (o.step + 1 < o.questions.length) {
-    await update($, offer, (): Offer => ({ ...o, step: o.step + 1, answers }))
+  const answers = [...d.answers, { q: q.q, a }]
+  if (d.step + 1 < d.questions.length) {
+    await update($, draft, (): Draft => ({ ...d, step: d.step + 1, answers }))
     return
   }
-  await finish($, o, answers)
+  await finish($, d, answers)
 }
 
-/** Rewrites into the prompt box; on failure the original stays there, sendable as is. */
-async function finish($: EngineInterface, o: Offer, answers: Answer[]) {
-  await update($, offer, (): Offer => ({ ...o, phase: 'improving', answers }))
+/** Rewrites into the prompt box; on failure, or once the prompt was sent, the box is left alone. */
+async function finish($: EngineInterface, d: Draft, answers: Answer[]) {
+  await update($, draft, (): Draft => ({ ...d, phase: 'improving', answers }))
   try {
-    const better = await rewrite($, o.text, answers)
+    const better = await rewrite($, d.text, answers)
+    if (!(await read($, draft))) return
+    improved = better
     const filled = await $.prompt.fill({ text: better, mode: 'replace' })
     if (!filled.isFilled) throw new Error('the prompt box did not take it')
-    improved = better
     $.ui.toast('Improved. Check it in the prompt box, then press Enter.')
   } catch (err) {
-    passOnce = o.text
-    $.ui.toast(`Could not improve it (${err instanceof Error ? err.message : String(err)}). Your prompt is in the box: Enter sends it as is.`)
+    improved = ''
+    $.ui.toast(`Could not improve it (${err instanceof Error ? err.message : String(err)}). Your prompt is still in the box.`)
   }
-  await update($, offer, () => null)
+  await update($, draft, () => null)
 }
 
 /** The coach's part of the band, or null when it has nothing to show. */
@@ -192,18 +228,18 @@ async function coachLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   const { Box, Button, Text } = els
   // The band draws on the terminal and desktop, which both have a text field.
   const Input = 'Input' in els ? els.Input : null
-  const o = await read($, offer)
-  if (o?.phase === 'improving') return <Text dimColor>Improving your prompt…</Text>
-  if (o?.phase === 'asking') {
-    const q = o.questions[o.step]
+  const d = await read($, draft)
+  if (d?.phase === 'improving') return <Text dimColor>Improving your prompt…</Text>
+  if (d?.phase === 'asking') {
+    const q = d.questions[d.step]
     if (!q) return null
     return (
       <Box flexDirection="column">
-        <Box>
-          <Text>{q.q.endsWith('?') ? q.q : `${q.q}?`}</Text>
-          <Text dimColor> ({o.step + 1}/{o.questions.length})</Text>
-        </Box>
-        <Box>
+        <Text wrap="truncate-end">
+          {q.q.endsWith('?') ? q.q : `${q.q}?`}
+          <Text dimColor> ({d.step + 1}/{d.questions.length})</Text>
+        </Text>
+        <Box flexWrap="wrap">
           {q.options.flatMap((label, i) => [
             <Button key={`coach-option-${i}`} label={label} hotkey={String(i + 1)} onPress={() => void answer($, label)} />,
             <Text key={`coach-gap-${i}`}> </Text>,
@@ -214,18 +250,20 @@ async function coachLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
       </Box>
     )
   }
-  if (o?.phase === 'offer') {
-    const why = o.issues.join('; ') || 'it leaves things to guess'
+  if (d?.phase === 'offer') {
+    const why = d.issues.join('; ') || 'it leaves things to guess'
+    // One row: the reasons cut off with an ellipsis before the button gives way.
     return (
-      <Box flexDirection="column">
-        <Box>
-          <Text color="yellow">{o.isDump ? 'Brain dump' : 'Prompt'} {o.score}/5</Text>
-          <Text dimColor> · {why}</Text>
+      <Box>
+        <Box flexShrink={1}>
+          <Text wrap="truncate-end">
+            <Text color="yellow">{d.isDump ? 'Brain dump' : 'Draft'} {d.score}/5</Text>
+            <Text dimColor> · {why}</Text>
+          </Text>
         </Box>
-        <Box>
-          <Button key="coach-improve" label={o.isDump ? 'Shape it into a brief' : 'Improve it'} hotkey="i" onPress={() => void startImprove($)} />
+        <Box flexShrink={0}>
           <Text> </Text>
-          <Button key="coach-send" label="Send as is" hotkey="s" onPress={() => void sendAsIs($)} />
+          <Button key="coach-improve" label={d.isDump ? 'Shape it into a brief' : 'Improve it'} hotkey="i" onPress={() => void startImprove($)} />
         </Box>
       </Box>
     )
@@ -234,11 +272,11 @@ async function coachLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   const l = await read($, last)
   if (mode !== 'after' || !l || l.score >= threshold) return null
   return (
-    <Box>
+    <Text wrap="truncate-end">
       <Text dimColor>Last prompt </Text>
       <Text color="yellow">{l.score}/5</Text>
       <Text dimColor>{l.issue ? ` · ${l.issue}` : ''}</Text>
-    </Box>
+    </Text>
   )
 }
 
@@ -252,9 +290,10 @@ export const register: Register = (on, options) => {
     if (saved === 'before' || saved === 'after' || saved === 'off') mode = saved
     await $.command.register({
       name: 'coach',
-      description: 'Prompt coach: how your prompts have rated, and your most common gaps. "before", "after" or "off" sets when it checks',
+      description: 'Prompt coach: how your prompts have rated, and your most common gaps. "before", "after" or "off" sets when it rates',
       argumentHint: 'before | after | off',
     })
+    $.clock.every(TICK_MS, () => void watch($).catch(() => undefined))
     return r
   })
 
@@ -264,6 +303,7 @@ export const register: Register = (on, options) => {
       mode = arg
       await $.store.set('mode', mode)
       if (mode !== 'after') await update($, last, () => null)
+      if (mode !== 'before') await update($, draft, () => null)
     }
     return { text: await summary($) }
   })
@@ -274,36 +314,26 @@ export const register: Register = (on, options) => {
     return r
   })
 
+  // Every prompt goes through as typed; the coach only clears its line and keeps score.
   on('prompt.submit', async ($, e, next) => {
     const text = e.text.trim()
-    if (passOnce && text === passOnce.trim()) {
-      passOnce = ''
-      return next(e)
-    }
-    const isOurs = text === improved.trim()
+    const isOurs = !!improved && text === improved.trim()
     if (isOurs) improved = ''
-    if (mode === 'off' || isOurs || e.isMeta || e.command || !TYPED.has(e.origin.kind) || MACHINE.test(text) || words(text) < MIN_WORDS) return next(e)
-    const attached = e.attachments?.length ?? 0
-    // A new prompt replaces an offer left unanswered.
-    if (await read($, offer)) await update($, offer, () => null)
+    if (await read($, draft)) await update($, draft, () => null)
+    if (mode === 'off' || isOurs || e.isMeta || e.command || !TYPED.has(e.origin.kind) || !isRateable(text)) return next(e)
 
-    if (mode === 'after') {
-      void review($, text, attached)
-        .then(async r => {
-          if (!r) return
-          await remember($, r)
-          await update($, last, (): Last => ({ score: r.score, issue: r.issues[0] ?? '' }))
-        })
-        .catch(() => undefined)
+    if (mode === 'before') {
+      if (rated.text === text && rated.review) void remember($, rated.review).catch(() => undefined)
       return next(e)
     }
 
-    const r = await review($, text, attached).catch(() => null)
-    if (!r) return next(e)
-    await remember($, r)
-    if (r.score >= threshold) return next(e)
-
-    if (await hold($, e.text, r)) return { drop: `held by prompt-coach (${r.score}/5): see above the prompt box` }
+    void review($, text, e.attachments?.length ?? 0)
+      .then(async r => {
+        if (!r) return
+        await remember($, r)
+        await update($, last, (): Last => ({ score: r.score, issue: r.issues[0] ?? '' }))
+      })
+      .catch(() => undefined)
     return next(e)
   })
 

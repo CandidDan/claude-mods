@@ -299,17 +299,25 @@ async function nowLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
 
   const { Box, Text, Button } = $.ui.resolve(e)
   return (
+    // One row: the text cuts off with an ellipsis before the buttons give way.
     <Box>
-      <Text dimColor>Now </Text>
-      <Text bold>{now.title}</Text>
-      <Text dimColor>{meta(now) ? `  ${meta(now)}  ` : '  '}</Text>
-      <Button
-        key="band-start"
-        label="Start"
-        onPress={() => void $.prompt.fill({ text: `Let's start on: ${now.title}\n`, mode: 'insert' })}
-      />
-      <Text> </Text>
-      <Button key="band-done" label="Done" onPress={() => markDone($, now.title)} />
+      <Box flexShrink={1}>
+        <Text wrap="truncate-end">
+          <Text dimColor>Now </Text>
+          <Text bold>{now.title}</Text>
+          <Text dimColor>{meta(now) ? `  ${meta(now)}` : ''}</Text>
+        </Text>
+      </Box>
+      <Box flexShrink={0}>
+        <Text>  </Text>
+        <Button
+          key="band-start"
+          label="Start"
+          onPress={() => void $.prompt.fill({ text: `Let's start on: ${now.title}\n`, mode: 'insert' })}
+        />
+        <Text> </Text>
+        <Button key="band-done" label="Done" onPress={() => markDone($, now.title)} />
+      </Box>
     </Box>
   )
 }

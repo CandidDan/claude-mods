@@ -1,6 +1,6 @@
 {
   "name": "day",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A live pane showing what the day looks like and what to tackle next, replanned from this session's own context after every turn.",
   "types": "./types/index.d.ts",
   "userConfig": {

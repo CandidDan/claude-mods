@@ -7,8 +7,8 @@ export type Review = { score: number; issues: string[]; gaps: Gap[]; questions: 
 /** One follow-up question's answer; null when skipped. */
 export type Answer = { q: string; a: string | null }
 
-/** A weak prompt held back, as the band walks it: the offer, each question, then the rewrite. */
-export type Offer = {
+/** A weak draft in the prompt box, as the band walks it: its rating, each question, then the rewrite. */
+export type Draft = {
   text: string
   score: number
   issues: string[]
@@ -25,6 +25,6 @@ export type Last = { score: number; issue: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    'prompt-coach': { last: Last | null; offer: Offer | null }
+    'prompt-coach': { last: Last | null; draft: Draft | null }
   }
 }

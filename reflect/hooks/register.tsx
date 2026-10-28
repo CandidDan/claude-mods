@@ -91,16 +91,24 @@ async function rulesLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   const b = await read($, band)
   if (e.props.hasSurvey || !b || isOff) return null
   const { Box, Button, Text } = $.ui.resolve(e)
-  if (b.kind === 'saved') return <Text dimColor>Reflect · {b.text}</Text>
+  if (b.kind === 'saved') return <Text dimColor wrap="truncate-end">Reflect · {b.text}</Text>
+  // One row: the rule cuts off with an ellipsis before the buttons give way.
   return (
     <Box>
-      <Text dimColor>Save as a rule? </Text>
-      <Text bold>{b.rule} </Text>
-      <Button key="project" label="This project" onPress={() => void save($, 'project')} />
-      <Text> </Text>
-      <Button key="everywhere" label="Everywhere" onPress={() => void save($, 'everywhere')} />
-      <Text> </Text>
-      <Button key="skip" label="Skip" onPress={() => void update($, band, () => null)} />
+      <Box flexShrink={1}>
+        <Text wrap="truncate-end">
+          <Text dimColor>Save as a rule? </Text>
+          <Text bold>{b.rule}</Text>
+        </Text>
+      </Box>
+      <Box flexShrink={0}>
+        <Text> </Text>
+        <Button key="project" label="This project" onPress={() => void save($, 'project')} />
+        <Text> </Text>
+        <Button key="everywhere" label="Everywhere" onPress={() => void save($, 'everywhere')} />
+        <Text> </Text>
+        <Button key="skip" label="Skip" onPress={() => void update($, band, () => null)} />
+      </Box>
     </Box>
   )
 }

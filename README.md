@@ -1,4 +1,4 @@
-# claude-mods
+# mods
 
 Claude Code mods (function-hook plugins).
 
@@ -6,7 +6,7 @@ Claude Code mods (function-hook plugins).
 |---|---|
 | [day](day/) | Live **Today** pane — next hours and what to tackle next, replanned from the session |
 | [handoff](handoff/) | `HANDOFF.md` written at session end or when a long chat offers it, picked up by the next session or after `/clear` |
-| [prompt-coach](prompt-coach/) | Rates each prompt before it's sent, says what's missing, offers to improve it |
+| [prompt-coach](prompt-coach/) | Rates your draft as you type, says what's missing, offers to improve it |
 | [cache-clock](cache-clock/) | Countdown above the prompt until the prompt cache goes cold; opt-in **Keep warm** |
 | [reflect](reflect/) | Offers to save your corrections as one-line rules in `CLAUDE.md` |
 | [design-standards](design-standards/) | Design Standards v2.1 as skills (core + audit); not a mod, skills only |
@@ -16,11 +16,11 @@ Claude Code mods (function-hook plugins).
 Mods don't load in Cowork. `skills/` holds the same as plain skills (`/day`, `/handoff`, `design-standards`, `design-standards-audit`):
 
 ```
-git clone https://github.com/CandidDan/claude-mods ~/Projects/claude-mods
-ln -s ~/Projects/claude-mods/skills/day ~/.claude/skills/day
-ln -s ~/Projects/claude-mods/skills/handoff ~/.claude/skills/handoff
-ln -s ~/Projects/claude-mods/skills/design-standards ~/.claude/skills/design-standards
-ln -s ~/Projects/claude-mods/skills/design-standards-audit ~/.claude/skills/design-standards-audit
+git clone https://github.com/CandidDan/claude-mods ~/Projects/mods
+ln -s ~/Projects/mods/skills/day ~/.claude/skills/day
+ln -s ~/Projects/mods/skills/handoff ~/.claude/skills/handoff
+ln -s ~/Projects/mods/skills/design-standards ~/.claude/skills/design-standards
+ln -s ~/Projects/mods/skills/design-standards-audit ~/.claude/skills/design-standards-audit
 ```
 
 ## Install (Claude Code)
@@ -34,10 +34,6 @@ ln -s ~/Projects/claude-mods/skills/design-standards-audit ~/.claude/skills/desi
 /plugin install reflect@candiddan
 /plugin install design-standards@candiddan
 ```
-
-## Cloud sessions
-
-Cloud sessions don't load plugins from your machine or from a repo's `.claude/settings.json`. Create your own cloud environment on claude.ai/code and paste [cloud/setup.sh](cloud/setup.sh) in as its setup script.
 
 ## Codex
 

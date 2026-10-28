@@ -1,13 +1,13 @@
 {
   "name": "prompt-coach",
-  "version": "0.3.0",
-  "description": "Rates each prompt before it is sent, says what is missing when it is weak, and offers to improve it with a question or two. Long weak prompts get shaped into a brief.",
+  "version": "0.4.0",
+  "description": "Rates your draft while it sits in the prompt box, says what is missing when it is weak, and offers to improve it with a question or two. Never holds a prompt back. Long weak drafts get shaped into a brief.",
   "types": "./types/index.d.ts",
   "userConfig": {
     "mode": {
       "type": "string",
       "title": "When to check",
-      "description": "before: rate each prompt before it is sent and offer to improve a weak one; after: send at once and show the rating above the prompt; off",
+      "description": "before: rate the draft in the prompt box as you type and offer to improve a weak one; after: rate each prompt once it is sent and show the rating above the prompt; off",
       "default": "before"
     },
     "threshold": {

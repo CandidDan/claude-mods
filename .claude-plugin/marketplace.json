@@ -18,7 +18,7 @@
     {
       "name": "prompt-coach",
       "source": "./prompt-coach",
-      "description": "Rates each prompt before it is sent, says what is missing, and offers to improve it"
+      "description": "Rates your draft as you type, says what is missing, and offers to improve it"
     },
     {
       "name": "cache-clock",

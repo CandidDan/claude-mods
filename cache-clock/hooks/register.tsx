@@ -128,27 +128,35 @@ async function cacheLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   if (ms <= 0) {
     if (c.promptTokens < MIN_TOKENS) return null
     return (
-      <Box>
+      <Text wrap="truncate-end">
         <Text dimColor>Cache </Text>
         <Text color="yellow">cold</Text>
         <Text dimColor> · next message re-sends {tokens(c.promptTokens)} tokens at full price</Text>
-      </Box>
+      </Text>
     )
   }
 
   const { ttl, isKnown } = await ttlOf($)
   const w = await read($, warm)
   return (
+    // One row: the text cuts off with an ellipsis before the button gives way.
     <Box>
-      <Text dimColor>Cache </Text>
-      <Text color="green">warm</Text>
-      <Text dimColor>
-        {' '}
-        · {left(ms)} left of {ttl}
-        {isKnown ? '' : '?'}
-        {w ? ` · kept warm ${w.pings}/${w.max}` : ''}{' '}
-      </Text>
-      <Button key="warm" label={w ? 'Stop' : 'Keep warm'} onPress={() => void toggleWarm($)} />
+      <Box flexShrink={1}>
+        <Text wrap="truncate-end">
+          <Text dimColor>Cache </Text>
+          <Text color="green">warm</Text>
+          <Text dimColor>
+            {' '}
+            · {left(ms)} left of {ttl}
+            {isKnown ? '' : '?'}
+            {w ? ` · kept warm ${w.pings}/${w.max}` : ''}
+          </Text>
+        </Text>
+      </Box>
+      <Box flexShrink={0}>
+        <Text> </Text>
+        <Button key="warm" label={w ? 'Stop' : 'Keep warm'} onPress={() => void toggleWarm($)} />
+      </Box>
     </Box>
   )
 }
