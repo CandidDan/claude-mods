@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
 import type { HandoffOffer, HandoffStatus } from '../types'
 
@@ -172,6 +172,32 @@ async function snooze($: EngineInterface) {
 
 const k = (n: number) => `${Math.round(n / 1000)}k`
 
+/** The handoff offer and its progress, or null when there is none. */
+async function offerLine($: EngineInterface, e: RenderInput<'AbovePrompt'>, file: string) {
+  const o = await read($, offer)
+  if (e.props.hasSurvey || e.props.isWorking || !o) return null
+  const { Box, Button, Text } = $.ui.resolve(e)
+  if (o.kind === 'writing') return <Text dimColor>Writing the handoff…</Text>
+  if (o.kind === 'written') {
+    return (
+      <Box>
+        <Text dimColor>
+          Handoff written{o.copied ? ' and copied' : ''}. /clear here or start a new chat in this folder, and it's picked up.{' '}
+        </Text>
+        <Button key="dismiss" label="OK" onPress={() => void update($, offer, () => null)} />
+      </Box>
+    )
+  }
+  return (
+    <Box>
+      <Text dimColor>Context {k(o.tokens)} · hand off to a fresh chat? </Text>
+      <Button key="handoff" label="Hand off" onPress={() => void handOff($, file)} />
+      <Text> </Text>
+      <Button key="snooze" label="Not now" onPress={() => void snooze($)} />
+    </Box>
+  )
+}
+
 export const register: Register = (on, options) => {
   const file = String(options.file ?? 'HANDOFF.md')
   const autoOnEnd = options.autoOnEnd !== false
@@ -212,26 +238,14 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const o = await read($, offer)
-    if (e.props.hasSurvey || e.props.isWorking || !o) return next(e)
-    const { Box, Button, Text } = $.ui.resolve(e)
-    if (o.kind === 'writing') return <Text dimColor>Writing the handoff…</Text>
-    if (o.kind === 'written') {
-      return (
-        <Box>
-          <Text dimColor>
-            Handoff written{o.copied ? ' and copied' : ''}. /clear here or start a new chat in this folder, and it's picked up.{' '}
-          </Text>
-          <Button key="dismiss" label="OK" onPress={() => void update($, offer, () => null)} />
-        </Box>
-      )
-    }
+    const mine = await offerLine($, e, file)
+    if (!mine) return next(e)
+    // Mods beneath draw their own lines under this one.
+    const { Box } = $.ui.resolve(e)
     return (
-      <Box>
-        <Text dimColor>Context {k(o.tokens)} · hand off to a fresh chat? </Text>
-        <Button key="handoff" label="Hand off" onPress={() => void handOff($, file)} />
-        <Text> </Text>
-        <Button key="snooze" label="Not now" onPress={() => void snooze($)} />
+      <Box flexDirection="column">
+        {mine}
+        {await next(e)}
       </Box>
     )
   })

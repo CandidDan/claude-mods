@@ -1,6 +1,6 @@
 {
   "name": "cache-clock",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A line above the prompt counting down until this chat's prompt cache goes cold, with an opt-in Keep warm.",
   "types": "./types/index.d.ts",
   "userConfig": {

@@ -159,7 +159,7 @@ test('past 200k it offers a handoff above the prompt; Hand off writes it and /cl
 
   live.tokens = 212_000
   await $.turn.complete(turn)
-  expect(await bandText($)).toBe('Context 212k · hand off to a fresh chat? Hand off Not now')
+  expect(await bandText($)).toBe('Context 212k · hand off to a fresh chat? Hand off Not nowengine')
 
   await pressBand($, 'handoff')
   expect(files['/repo/HANDOFF.md']).toContain('# Handoff · ship the day mod')

@@ -1,6 +1,6 @@
 {
   "name": "prompt-coach",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Rates each prompt before it is sent, says what is missing when it is weak, and offers to improve it with a question or two. Long weak prompts get shaped into a brief.",
   "types": "./types/index.d.ts",
   "userConfig": {

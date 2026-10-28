@@ -61,6 +61,10 @@ test('/today plans from a fork: now, then and schedule in the pane on each surfa
 test('Done moves the next item up, in the pane and the band', async ($, on) => {
   mock.clock(on, { now: Date.UTC(2026, 9, 8, 3, 0) })
   world(on)
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
   on('model.fork', () => ({ value: { isAnswered: true as const, text: planJson, usage } }))
   await $.command.run({ command: 'today', args: '' })
 

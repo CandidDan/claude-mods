@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
 import type { DayBlock, DayItem, DayPlan, DayStatus } from '../types'
 
@@ -290,6 +290,30 @@ function scheduleReplan($: EngineInterface, timezone: string, ms = 800): void {
   })
 }
 
+/** The Now item with Start and Done, or null when there is none to show. */
+async function nowLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
+  if (e.props.hasSurvey || (await read($, isHidden))) return null
+  const p = await read($, plan)
+  const now = current(p, await read($, done))
+  if (!now) return null
+
+  const { Box, Text, Button } = $.ui.resolve(e)
+  return (
+    <Box>
+      <Text dimColor>Now </Text>
+      <Text bold>{now.title}</Text>
+      <Text dimColor>{meta(now) ? `  ${meta(now)}  ` : '  '}</Text>
+      <Button
+        key="band-start"
+        label="Start"
+        onPress={() => void $.prompt.fill({ text: `Let's start on: ${now.title}\n`, mode: 'insert' })}
+      />
+      <Text> </Text>
+      <Button key="band-done" label="Done" onPress={() => markDone($, now.title)} />
+    </Box>
+  )
+}
+
 export const register: Register = (on, options) => {
   const defaultHours = Number(options.horizonHours ?? 4) || 4
   const refreshMinutes = Number(options.refreshMinutes ?? 45)
@@ -437,24 +461,14 @@ export const register: Register = (on, options) => {
 
   // One line above the prompt: what to do now, wherever the pane is.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
-    const p = await read($, plan)
-    const now = current(p, await read($, done))
-    if (!now) return next(e)
-
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const mine = await nowLine($, e)
+    if (!mine) return next(e)
+    // Mods beneath draw their own lines under this one.
+    const { Box } = $.ui.resolve(e)
     return (
-      <Box>
-        <Text dimColor>Now </Text>
-        <Text bold>{now.title}</Text>
-        <Text dimColor>{meta(now) ? `  ${meta(now)}  ` : '  '}</Text>
-        <Button
-          key="band-start"
-          label="Start"
-          onPress={() => void $.prompt.fill({ text: `Let's start on: ${now.title}\n`, mode: 'insert' })}
-        />
-        <Text> </Text>
-        <Button key="band-done" label="Done" onPress={() => markDone($, now.title)} />
+      <Box flexDirection="column">
+        {mine}
+        {await next(e)}
       </Box>
     )
   })

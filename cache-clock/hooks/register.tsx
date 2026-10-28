@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, TurnUsage } from 'claude-code'
+import type { EngineInterface, Register, RenderInput, TurnUsage } from 'claude-code'
 
 import type { CacheClock, KeepWarm, Ttl } from '../types'
 
@@ -118,6 +118,41 @@ async function status($: EngineInterface) {
   return `Cache warm: ${left(ms)} left of ${ttl}${assumed}, ${tokens(c.promptTokens)} tokens cached.`
 }
 
+/** The cache's warm or cold line, or null when there is nothing worth showing. */
+async function cacheLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
+  const c = await read($, clock)
+  if (e.props.hasSurvey || e.props.isWorking || !c || (await read($, isHidden))) return null
+  const ms = (await remaining($)) ?? 0
+  const { Box, Button, Text } = $.ui.resolve(e)
+
+  if (ms <= 0) {
+    if (c.promptTokens < MIN_TOKENS) return null
+    return (
+      <Box>
+        <Text dimColor>Cache </Text>
+        <Text color="yellow">cold</Text>
+        <Text dimColor> · next message re-sends {tokens(c.promptTokens)} tokens at full price</Text>
+      </Box>
+    )
+  }
+
+  const { ttl, isKnown } = await ttlOf($)
+  const w = await read($, warm)
+  return (
+    <Box>
+      <Text dimColor>Cache </Text>
+      <Text color="green">warm</Text>
+      <Text dimColor>
+        {' '}
+        · {left(ms)} left of {ttl}
+        {isKnown ? '' : '?'}
+        {w ? ` · kept warm ${w.pings}/${w.max}` : ''}{' '}
+      </Text>
+      <Button key="warm" label={w ? 'Stop' : 'Keep warm'} onPress={() => void toggleWarm($)} />
+    </Box>
+  )
+}
+
 export const register: Register = (on, options) => {
   fixed = options.ttl === '5m' || options.ttl === '1h' ? (options.ttl as Ttl) : null
   maxPings = Math.max(1, Number(options.keepWarmPings ?? 6) || 6)
@@ -175,35 +210,14 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const c = await read($, clock)
-    if (e.props.hasSurvey || e.props.isWorking || !c || (await read($, isHidden))) return next(e)
-    const ms = (await remaining($)) ?? 0
-    const { Box, Button, Text } = $.ui.resolve(e)
-
-    if (ms <= 0) {
-      if (c.promptTokens < MIN_TOKENS) return next(e)
-      return (
-        <Box>
-          <Text dimColor>Cache </Text>
-          <Text color="yellow">cold</Text>
-          <Text dimColor> · next message re-sends {tokens(c.promptTokens)} tokens at full price</Text>
-        </Box>
-      )
-    }
-
-    const { ttl, isKnown } = await ttlOf($)
-    const w = await read($, warm)
+    const mine = await cacheLine($, e)
+    if (!mine) return next(e)
+    // Mods beneath draw their own lines under this one.
+    const { Box } = $.ui.resolve(e)
     return (
-      <Box>
-        <Text dimColor>Cache </Text>
-        <Text color="green">warm</Text>
-        <Text dimColor>
-          {' '}
-          · {left(ms)} left of {ttl}
-          {isKnown ? '' : '?'}
-          {w ? ` · kept warm ${w.pings}/${w.max}` : ''}{' '}
-        </Text>
-        <Button key="warm" label={w ? 'Stop' : 'Keep warm'} onPress={() => void toggleWarm($)} />
+      <Box flexDirection="column">
+        {mine}
+        {await next(e)}
       </Box>
     )
   })

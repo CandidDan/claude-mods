@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
 import type { Band } from '../types'
 
@@ -86,6 +86,25 @@ async function save($: EngineInterface, where: 'project' | 'everywhere') {
   }
 }
 
+/** A drafted rule to save, or where one was saved; null otherwise. */
+async function rulesLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
+  const b = await read($, band)
+  if (e.props.hasSurvey || !b || isOff) return null
+  const { Box, Button, Text } = $.ui.resolve(e)
+  if (b.kind === 'saved') return <Text dimColor>Reflect · {b.text}</Text>
+  return (
+    <Box>
+      <Text dimColor>Save as a rule? </Text>
+      <Text bold>{b.rule} </Text>
+      <Button key="project" label="This project" onPress={() => void save($, 'project')} />
+      <Text> </Text>
+      <Button key="everywhere" label="Everywhere" onPress={() => void save($, 'everywhere')} />
+      <Text> </Text>
+      <Button key="skip" label="Skip" onPress={() => void update($, band, () => null)} />
+    </Box>
+  )
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
@@ -128,19 +147,14 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const b = await read($, band)
-    if (e.props.hasSurvey || !b || isOff) return next(e)
-    const { Box, Button, Text } = $.ui.resolve(e)
-    if (b.kind === 'saved') return <Text dimColor>Reflect · {b.text}</Text>
+    const mine = await rulesLine($, e)
+    if (!mine) return next(e)
+    // Mods beneath draw their own lines under this one.
+    const { Box } = $.ui.resolve(e)
     return (
-      <Box>
-        <Text dimColor>Save as a rule? </Text>
-        <Text bold>{b.rule} </Text>
-        <Button key="project" label="This project" onPress={() => void save($, 'project')} />
-        <Text> </Text>
-        <Button key="everywhere" label="Everywhere" onPress={() => void save($, 'everywhere')} />
-        <Text> </Text>
-        <Button key="skip" label="Skip" onPress={() => void update($, band, () => null)} />
+      <Box flexDirection="column">
+        {mine}
+        {await next(e)}
       </Box>
     )
   })
