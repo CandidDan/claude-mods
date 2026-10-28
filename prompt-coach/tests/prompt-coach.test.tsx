@@ -23,7 +23,7 @@ const bandProps = { hasSurvey: false, isWorking: false, maxRows: 10, columns: 10
 
 /** The world beneath: a model whose review the test sets, a dialog that answers, a prompt box. */
 function world(on: On, store: Record<string, unknown> = {}) {
-  const seen = { reviews: 0, rewrites: 0, asked: [] as string[], filled: [] as string[], passed: [] as string[], toasts: [] as string[] }
+  const seen = { prompt: '', reviews: 0, rewrites: 0, asked: [] as string[], filled: [] as string[], passed: [] as string[], toasts: [] as string[] }
   const set = { review: weakReview, answer: 'Improve it', fails: false }
   mock.clock(on, { now: Date.UTC(2026, 9, 28, 10, 0) })
   mock.store(on, store)
@@ -47,6 +47,7 @@ function world(on: On, store: Record<string, unknown> = {}) {
   })
   on('model.complete', ($, e) => {
     const isReview = String(e.system ?? '').includes('Return JSON only')
+    seen.prompt = String(e.prompt)
     if (isReview) seen.reviews += 1
     else seen.rewrites += 1
     if (set.fails) return { value: { isAnswered: false as const, reason: 'api-error' as const, status: 529, error: 'overloaded', usage } }
@@ -110,14 +111,47 @@ test('short replies and prompts not typed by a person are left alone', async ($,
   expect(seen.passed.length).toBe(2)
 })
 
-test('a brain dump is offered a brief even when it rates well', async ($, on) => {
+test('a long prompt is offered a brief only when it rates low', async ($, on) => {
   const { seen, set } = world(on)
   set.review = JSON.stringify({ score: 4, issues: [], gaps: [], questions: [] })
   await start($)
   const dump = Array.from({ length: 130 }, (_, i) => `word${i}`).join(' ')
+  await submit($, dump)
+  expect(seen.asked).toEqual([])
+  expect(seen.passed).toEqual([dump])
+
+  set.review = weakReview
   const r = await submit($, dump)
-  expect(seen.asked[0]).toBe('This reads like a brain dump (4/5). Shape it into a brief first?')
+  expect(seen.asked[0]).toBe('This reads like a brain dump (2/5): which page: home or pricing; what "off" means. Shape it into a brief first?')
   expect(r.drop).toBe('improved in the prompt box')
+})
+
+test('a 3/5 goes through by default', async ($, on) => {
+  const { seen, set } = world(on)
+  set.review = JSON.stringify({ score: 3, issues: ['which file'], gaps: ['scope'], questions: [] })
+  await start($)
+  await submit($, WEAK)
+  expect(seen.asked).toEqual([])
+  expect(seen.passed).toEqual([WEAK])
+})
+
+test("the desktop app's own messages, such as another session's report, are left alone", async ($, on) => {
+  const { seen } = world(on)
+  await start($)
+  const report = `<system-reminder>\nThe session "Worker: flow-0173" you started finished a turn. ${Array.from({ length: 300 }, () => 'report').join(' ')}\n</system-reminder>`
+  await submit($, report, { kind: 'sdk' })
+  await submit($, '<task-notification><status>completed</status> the background command finished with output</task-notification>', { kind: 'sdk' })
+  expect(seen.reviews).toBe(0)
+  expect(seen.passed.length).toBe(2)
+})
+
+test('the review is told about an attached image it cannot see', async ($, on) => {
+  const { seen, set } = world(on)
+  set.review = goodReview
+  await start($)
+  await $.prompt.submit({ text: 'Think this might be triggering on the wrong thing, is it just on length?', origin: composer, wait: false, attachments: [{ id: 'img1', kind: 'image' }] } as never)
+  expect(seen.prompt).toContain('The person attached 1 image or file you cannot see')
+  expect(seen.asked).toEqual([])
 })
 
 test('a failed review sends the prompt as typed', async ($, on) => {

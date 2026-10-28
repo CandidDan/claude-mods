@@ -1,7 +1,7 @@
 {
   "name": "prompt-coach",
-  "version": "0.1.0",
-  "description": "Rates each prompt before it is sent, says what is missing when it is weak, and offers to improve it with a question or two. Long brain dumps get shaped into a brief.",
+  "version": "0.2.0",
+  "description": "Rates each prompt before it is sent, says what is missing when it is weak, and offers to improve it with a question or two. Long weak prompts get shaped into a brief.",
   "types": "./types/index.d.ts",
   "userConfig": {
     "mode": {
@@ -13,8 +13,8 @@
     "threshold": {
       "type": "number",
       "title": "Offer below",
-      "description": "Offer to improve a prompt rated below this score (1 to 5)",
-      "default": 4
+      "description": "Offer to improve a prompt rated below this score (1 to 5); 3 offers on 1 and 2",
+      "default": 3
     }
   },
   "author": {

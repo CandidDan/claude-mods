@@ -7,7 +7,7 @@ const last = atom({ plugin: 'prompt-coach', key: 'last' } as const, null as Last
 
 // Shorter prompts are replies ("yes", "do the next one"); the conversation carries them.
 const MIN_WORDS = 8
-// Longer prompts are brain dumps: offered a brief whatever their score.
+// Longer weak prompts are brain dumps: offered a four-part brief.
 const DUMP_WORDS = 120
 const MAX_QUESTIONS = 3
 const HISTORY = 100
@@ -26,6 +26,9 @@ const IMPROVE = 'Improve it'
 const SEND = 'Send as is'
 // Origins a person typed at: the terminal, the desktop app, a phone.
 const TYPED = new Set(['composer', 'bridge', 'sdk'])
+// The desktop app also delivers its own messages (another session's report, a
+// reminder) as sdk prompts; those open with a tag, which a person never types.
+const MACHINE = /^\s*<[a-z][\w-]*[\s>]/i
 
 const REVIEW_SYSTEM = `You review a prompt a person is about to send to an AI coding and work assistant, and say how well it sets the assistant up to do the job without guessing.
 
@@ -58,15 +61,18 @@ Rules:
 
 // Module variables start over on a reload.
 let mode = 'before'
-let threshold = 4
+let threshold = 3
 let lastReply = ''
 let improved = ''
 
 const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length
 
-function context(text: string) {
+function context(text: string, attached = 0) {
   const reply = lastReply ? `<last_reply>\n${lastReply.slice(-1500)}\n</last_reply>\n\n` : ''
-  return `${reply}<prompt>\n${text}\n</prompt>`
+  const note = attached
+    ? `\n\nThe person attached ${attached} image${attached > 1 ? 's' : ''} or file${attached > 1 ? 's' : ''} you cannot see. Assume ${attached > 1 ? 'they show' : 'it shows'} what the prompt refers to; do not mark the prompt down for leaning on ${attached > 1 ? 'them' : 'it'}.`
+    : ''
+  return `${reply}<prompt>\n${text}\n</prompt>${note}`
 }
 
 /** The reply as a Review, or null when it does not parse. */
@@ -95,8 +101,8 @@ function parseReview(raw: string): Review | null {
 }
 
 /** Haiku's rating, or null when it fails or runs long: the prompt then goes as typed. */
-async function review($: EngineInterface, text: string): Promise<Review | null> {
-  const r = await $.model.complete({ model: 'haiku', system: REVIEW_SYSTEM, prompt: context(text), maxTokens: 500, effort: 'low', timeoutMs: REVIEW_MS })
+async function review($: EngineInterface, text: string, attached = 0): Promise<Review | null> {
+  const r = await $.model.complete({ model: 'haiku', system: REVIEW_SYSTEM, prompt: context(text, attached), maxTokens: 500, effort: 'low', timeoutMs: REVIEW_MS })
   return r.isAnswered ? parseReview(r.text) : null
 }
 
@@ -157,7 +163,7 @@ async function improve($: EngineInterface, text: string, r: Review | null) {
 
 export const register: Register = (on, options) => {
   mode = ['before', 'after', 'off'].includes(String(options.mode)) ? String(options.mode) : 'before'
-  threshold = Math.min(5, Math.max(1, Number(options.threshold ?? 4) || 4))
+  threshold = Math.min(5, Math.max(1, Number(options.threshold ?? 3) || 3))
 
   on('session.start', async ($, e, next) => {
     const r = await next(e)
@@ -191,10 +197,11 @@ export const register: Register = (on, options) => {
     const text = e.text.trim()
     const isOurs = text === improved.trim()
     if (isOurs) improved = ''
-    if (mode === 'off' || isOurs || e.isMeta || e.command || !TYPED.has(e.origin.kind) || words(text) < MIN_WORDS) return next(e)
+    if (mode === 'off' || isOurs || e.isMeta || e.command || !TYPED.has(e.origin.kind) || MACHINE.test(text) || words(text) < MIN_WORDS) return next(e)
+    const attached = e.attachments?.length ?? 0
 
     if (mode === 'after') {
-      void review($, text)
+      void review($, text, attached)
         .then(async r => {
           if (!r) return
           await remember($, r)
@@ -204,17 +211,19 @@ export const register: Register = (on, options) => {
       return next(e)
     }
 
-    const isDump = words(text) >= DUMP_WORDS
-    const r = await review($, text).catch(() => null)
-    if (r) await remember($, r)
-    if (!isDump && (!r || r.score >= threshold)) return next(e)
+    const r = await review($, text, attached).catch(() => null)
+    if (!r) return next(e)
+    await remember($, r)
+    if (r.score >= threshold) return next(e)
 
-    const question = isDump
-      ? `This reads like a brain dump${r ? ` (${r.score}/5)` : ''}. Shape it into a brief first?`
-      : `Claude rates this prompt ${r?.score}/5: ${r?.issues.join('; ') || 'it leaves things to guess'}. Improve it first?`
+    const why = r.issues.join('; ') || 'it leaves things to guess'
+    const question =
+      words(text) >= DUMP_WORDS
+        ? `This reads like a brain dump (${r.score}/5): ${why}. Shape it into a brief first?`
+        : `Claude rates this prompt ${r.score}/5: ${why}. Improve it first?`
     let choice = SEND
     try {
-      choice = await $.ui.ask(question, { options: [IMPROVE, SEND], header: r ? `Prompt ${r.score}/5` : 'Prompt' })
+      choice = await $.ui.ask(question, { options: [IMPROVE, SEND], header: `Prompt ${r.score}/5` })
     } catch {
       return next(e)
     }
