@@ -3,17 +3,21 @@ export type DayBlock = {
   start: string
   /** "11:00" */
   end: string
+  /** at most 4 words */
   label: string
   /** fixed = calendar/commitment, work = proposed focus block, break = rest */
   kind: 'fixed' | 'work' | 'break'
 }
 
 export type DayItem = {
+  /** verb first, at most 8 words: "Merge CandidDan/flow#245" */
   title: string
-  /** one short clause: why now / what unblocks */
+  /** at most 10 words: why now / what it unblocks */
   why: string
   /** rough effort in minutes */
   minutes?: number
+  /** who has to do it: you (a decision, a merge, a call) or claude (a session can) */
+  who?: 'you' | 'claude'
 }
 
 export type DayPlan = {
@@ -24,9 +28,8 @@ export type DayPlan = {
   /** hours the plan covers */
   horizonHours: number
   blocks: DayBlock[]
+  /** ranked; the first one not done is "now" */
   next: DayItem[]
-  /** things waiting on Dan, outside the session's own work */
-  waiting: DayItem[]
   /** sources the plan drew on, e.g. "session", "calendar" */
   sources: string[]
 }
@@ -38,6 +41,14 @@ export type DayStatus = {
 
 declare module 'claude-code' {
   interface PluginState {
-    day: { plan: DayPlan | null; status: DayStatus; horizonHours: number }
+    day: {
+      plan: Shaped<DayPlan | null>
+      /** titles of plan items marked done since the plan was made */
+      done: string[]
+      status: DayStatus
+      horizonHours: number
+      /** /today off hides the pane and the band above the prompt */
+      isHidden: boolean
+    }
   }
 }

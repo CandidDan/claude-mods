@@ -6,7 +6,10 @@ import type { DayBlock, DayItem, DayPlan, DayStatus } from '../types'
 const PANE = 'day'
 const TITLE = 'Today'
 
-const plan = atom({ plugin: 'day', key: 'plan' } as const, null)
+// 'plan-2': items carry `who`, no separate waiting list. A plan stored by an older version reads as none.
+const plan = atom({ plugin: 'day', key: 'plan' } as const, null as DayPlan | null, { shape: 'plan-2' })
+const done = atom({ plugin: 'day', key: 'done' } as const, [] as string[])
+const isHidden = atom({ plugin: 'day', key: 'isHidden' } as const, false)
 const status = atom({ plugin: 'day', key: 'status' } as const, { phase: 'idle', note: '' } as DayStatus)
 const horizon = atom({ plugin: 'day', key: 'horizonHours' } as const, 4)
 
@@ -107,7 +110,7 @@ function pickTime(v: unknown): number | undefined {
 
 // ---------- planning ----------
 
-function forkPrompt(nowMs: number, hours: number, timezone: string, events: CalendarEvent[]): string {
+function forkPrompt(nowMs: number, hours: number, timezone: string, events: CalendarEvent[], doneTitles: string[] = []): string {
   const fixed = events.length
     ? events.map(e => `- ${e.start}${e.end ? `–${e.end}` : ''} ${e.summary}`).join('\n')
     : '- (none found)'
@@ -117,11 +120,21 @@ function forkPrompt(nowMs: number, hours: number, timezone: string, events: Cale
     'Fixed commitments in the window:',
     fixed,
     '',
+    ...(doneTitles.length ? ['Already done since the last plan (leave these out):', ...doneTitles.map(t => `- ${t}`)] : []),
+    '',
     'Use everything this session knows: tasks and runlists we read or wrote, decisions made, what is half-done, what is blocked, what I said I needed to do. Not only dev work: errands, calls, prep, decisions count.',
-    'Rank "next" by what unblocks the most or has the nearest deadline; be concrete (a file, a task id, a person) and honest about what is uncertain.',
+    'Rank "next" by what unblocks the most or has the nearest deadline. The first item is what I do right now.',
+    'It is read at a glance in a narrow side panel, so be terse:',
+    '- headline: at most 12 words, the shape of the window. Do not restate the items.',
+    '- next: 3–6 items. title: at most 8 words, starts with a verb, names the concrete thing (a PR as owner/repo#123, a task id, a person, a file). No commands, no explanations in the title.',
+    '- why: at most 10 words, why now or what it unblocks. No repeating the title.',
+    '- who: "you" when it needs me (a decision, a review, a merge, a call, anything only I can do), "claude" when a session can do it.',
+    '- minutes: a rough estimate.',
+    '- blocks: 3–6, tiling the window in order, fixed ones from the list above. label: at most 4 words, the short name of the item it holds.',
+    '- Say each thing once: no separate list of what waits on me (mark it who:"you" instead).',
     'Answer with JSON only, no prose, no code fence, exactly this shape:',
-    '{"headline":"one plain line on the shape of the window","blocks":[{"start":"HH:MM","end":"HH:MM","label":"...","kind":"fixed|work|break"}],"next":[{"title":"...","why":"...","minutes":30}],"waiting":[{"title":"...","why":"..."}],"sources":["session","calendar"]}',
-    'Rules: blocks tile the window in order, 3–6 of them, fixed ones from the list above; next has 3–6 items, most important first; waiting lists things outside the session that are on me (empty array if none); omit sources you did not use.',
+    '{"headline":"...","blocks":[{"start":"HH:MM","end":"HH:MM","label":"...","kind":"fixed|work|break"}],"next":[{"title":"...","why":"...","minutes":30,"who":"you|claude"}],"sources":["session","calendar"]}',
+    'Omit sources you did not use.',
   ].join('\n')
 }
 
@@ -143,13 +156,19 @@ function parsePlan(text: string): Omit<DayPlan, 'madeAt' | 'horizonHours'> | nul
         if (!i || typeof i !== 'object') return []
         const o = i as Record<string, unknown>
         const minutes = typeof o.minutes === 'number' ? o.minutes : undefined
-        return [{ title: String(o.title ?? ''), why: String(o.why ?? ''), ...(minutes !== undefined ? { minutes } : {}) }]
+        const who = o.who === 'you' || o.who === 'claude' ? o.who : undefined
+        return [{
+          title: String(o.title ?? ''),
+          why: String(o.why ?? ''),
+          ...(minutes !== undefined ? { minutes } : {}),
+          ...(who ? { who } : {}),
+        }]
       })
     return {
       headline: String(raw.headline ?? ''),
       blocks,
-      next: items(raw.next),
-      waiting: items(raw.waiting),
+      // An answer in the old shape still has its waiting list: those are the person's.
+      next: [...items(raw.next), ...items(raw.waiting).map(i => ({ ...i, who: 'you' as const }))],
       sources: (Array.isArray(raw.sources) ? raw.sources : []).map(String),
     }
   } catch {
@@ -174,7 +193,7 @@ async function replan($: EngineInterface, hours: number, timezone: string): Prom
   await update($, status, () => ({ phase: 'planning', note: '' }))
   const nowMs = await $.clock.now()
   const events = await calendar($, nowMs, hours, timezone)
-  const prompt = forkPrompt(nowMs, hours, timezone, events)
+  const prompt = forkPrompt(nowMs, hours, timezone, events, await read($, done))
   let reply = await $.model.fork({ prompt })
 
   // After a resume or app restart the engine has nothing to fork until a new
@@ -209,30 +228,49 @@ async function replan($: EngineInterface, hours: number, timezone: string): Prom
 
   const made: DayPlan = { ...parsed, madeAt: clock(nowMs, timezone), horizonHours: hours }
   await update($, plan, () => made)
-  const done: DayStatus = { phase: 'idle', note: '' }
-  await update($, status, () => done)
-  const top = made.next[0]
-  $.ui.status(top ? `next: ${top.title}` : undefined)
-  return done
+  await update($, done, () => [])
+  const idle: DayStatus = { phase: 'idle', note: '' }
+  await update($, status, () => idle)
+  showStatus($, made, [])
+  return idle
+}
+
+/** The first item not marked done: what to do now. */
+function current(p: DayPlan | null, doneTitles: string[]): DayItem | undefined {
+  return p?.next.find(i => !doneTitles.includes(i.title))
+}
+
+function showStatus($: EngineInterface, p: DayPlan | null, doneTitles: string[]): void {
+  const now = current(p, doneTitles)
+  $.ui.status(now ? `now: ${now.title}` : undefined)
+}
+
+/** Mark an item done; the next one becomes "now". */
+async function markDone($: EngineInterface, title: string): Promise<void> {
+  const list = await update($, done, d => (d.includes(title) ? d : [...d, title]))
+  showStatus($, await read($, plan), list)
+}
+
+function meta(i: DayItem): string {
+  return [i.minutes ? `${i.minutes}m` : '', i.who ?? ''].filter(Boolean).join(' · ')
 }
 
 // ---------- drawing ----------
 
-function planMarkdown(p: DayPlan): string {
-  const blocks = p.blocks.map(b => {
-    const mark = b.kind === 'fixed' ? '▪' : b.kind === 'break' ? '·' : '▫'
-    return `${mark} **${b.start}–${b.end}** ${b.label}`
-  })
-  const next = p.next.map((i, n) => `${n + 1}. **${i.title}**${i.minutes ? ` _(${i.minutes}m)_` : ''} — ${i.why}`)
-  const waiting = p.waiting.map(i => `- ${i.title} — ${i.why}`)
+/** One line per block: "11:05 Merge #245 · 12:45 Lunch". */
+function scheduleLine(p: DayPlan): string {
+  return p.blocks.map(b => `${b.start} ${b.label}`).join(' · ')
+}
+
+/** The plan as Markdown, for a reply in chat where no pane is drawn. */
+function planMarkdown(p: DayPlan, doneTitles: string[] = []): string {
+  const now = current(p, doneTitles)
+  const rest = p.next.filter(i => i !== now && !doneTitles.includes(i.title))
   return [
     `_${p.headline}_`,
-    '',
-    blocks.join('  \n'),
-    '',
-    '**Next**',
-    next.join('\n'),
-    ...(waiting.length ? ['', '**Waiting on you**', waiting.join('\n')] : []),
+    ...(now ? ['', `**Now:** ${now.title}${meta(now) ? ` _(${meta(now)})_` : ''}`, `${now.why}`] : []),
+    ...(rest.length ? ['', '**Then**', ...rest.map((i, n) => `${n + 2}. ${i.title}${meta(i) ? ` _(${meta(i)})_` : ''}`)] : []),
+    ...(p.blocks.length ? ['', `**Schedule** ${scheduleLine(p)}`] : []),
   ].join('\n')
 }
 
@@ -264,7 +302,8 @@ export const register: Register = (on, options) => {
       description: 'Plan the day: /today (default window), /today eod, /today 2h, /today off',
       argumentHint: 'eod | <n>h | off',
     })
-    void $.ui.open({ id: PANE, title: TITLE, columns: 48 })
+    if (!(await read($, isHidden))) void $.ui.open({ id: PANE, title: TITLE, columns: 48 })
+    showStatus($, await read($, plan), await read($, done))
 
     if (refreshMinutes > 0) {
       $.clock.every(refreshMinutes * 60_000, async () => {
@@ -288,9 +327,11 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'today' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
     if (arg === 'off') {
+      await update($, isHidden, () => true)
       await $.ui.close({ id: PANE })
-      return { text: 'Day pane closed. /today brings it back.' }
+      return { text: 'Day pane and band hidden. /today brings them back.' }
     }
+    await update($, isHidden, () => false)
     const nowMs = await $.clock.now()
     const hours =
       arg === 'eod' || arg === 'today'
@@ -306,39 +347,76 @@ export const register: Register = (on, options) => {
     if (outcome.phase === 'error' || !p) return { text: outcome.note || 'No plan yet.' }
     // No pane on this surface (Cowork, chat, mobile): put the whole plan in the reply.
     if (!opened.isPlaced) return { text: planMarkdown(p) }
-    const top = p.next.slice(0, 3).map((i, n) => `${n + 1}. ${i.title}`).join('\n')
-    return { text: `${p.headline}\n\nNext:\n${top}\n\n(full plan in the Today pane)` }
+    const now = current(p, [])
+    return { text: now ? `Now: ${now.title}. The rest is in the Today pane.` : p.headline }
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button, Markdown } = $.ui.resolve(e)
     const p = await read($, plan)
+    const doneTitles = await read($, done)
     const s = await read($, status)
     const hours = await read($, horizon)
 
     const header = p
       ? `${p.madeAt} · next ${p.horizonHours}h${p.sources.includes('calendar') ? ' · calendar' : ''}`
       : `next ${hours}h`
-    const refreshing = s.phase === 'planning'
+    const now = current(p, doneTitles)
+    const rest = p ? p.next.filter(i => i !== now && !doneTitles.includes(i.title)) : []
+    const doneCount = p ? p.next.filter(i => doneTitles.includes(i.title)).length : 0
 
     return (
       <Box flexDirection="column">
         <Box justifyContent="space-between">
           <Text dimColor>{header}</Text>
-          {refreshing ? <Text dimColor>planning…</Text> : null}
+          {s.phase === 'planning' ? <Text dimColor>planning…</Text> : null}
         </Box>
         {s.phase === 'error' ? <Text dimColor>{s.note}</Text> : null}
-        {p ? <Markdown key="plan" text={planMarkdown(p)} /> : <Text dimColor>No plan yet. Finish a turn or run /today.</Text>}
+        {!p ? <Text dimColor>No plan yet. Finish a turn or run /today.</Text> : null}
+        {p ? <Text italic>{p.headline}</Text> : null}
+
+        {now ? (
+          <Box flexDirection="column" marginTop={1}>
+            <Text dimColor>NOW{meta(now) ? ` · ${meta(now)}` : ''}</Text>
+            <Markdown key="now" text={`**${now.title}**`} />
+            <Text dimColor>{now.why}</Text>
+            <Box marginTop={1}>
+              <Button
+                key="start"
+                label="Start"
+                hotkey="s"
+                variant="primary"
+                onPress={() => void $.prompt.fill({ text: `Let's start on: ${now.title}\n`, mode: 'insert' })}
+              />
+              <Text> </Text>
+              <Button key="done" label="Done" hotkey="d" onPress={() => markDone($, now.title)} />
+            </Box>
+          </Box>
+        ) : p ? (
+          <Box marginTop={1}>
+            <Text>All done. Refresh for what's next.</Text>
+          </Box>
+        ) : null}
+
+        {rest.length ? (
+          <Box flexDirection="column" marginTop={1}>
+            <Text dimColor>THEN</Text>
+            <Markdown
+              key="plan"
+              text={rest.map(i => `- ${i.title}${meta(i) ? ` · _${meta(i)}_` : ''}`).join('\n')}
+            />
+          </Box>
+        ) : null}
+
+        {p?.blocks.length ? (
+          <Box flexDirection="column" marginTop={1}>
+            <Text dimColor>SCHEDULE</Text>
+            <Text dimColor>{scheduleLine(p)}</Text>
+          </Box>
+        ) : null}
+
         <Box marginTop={1}>
-          <Button
-            key="refresh"
-            label="Refresh"
-            hotkey="r"
-            variant="primary"
-            onPress={() => {
-              void replan($, hours, timezone)
-            }}
-          />
+          <Button key="refresh" label="Refresh" hotkey="r" onPress={() => void replan($, hours, timezone)} />
           <Text> </Text>
           <Button
             key="today"
@@ -351,19 +429,32 @@ export const register: Register = (on, options) => {
               void replan($, next, timezone)
             }}
           />
-          <Text> </Text>
-          {p?.next[0] ? (
-            <Button
-              key="start"
-              label="Start #1"
-              hotkey="s"
-              onPress={() => {
-                const top = p.next[0]
-                if (top) void $.prompt.fill({ text: `Let's start on: ${top.title}\n`, mode: 'insert' })
-              }}
-            />
-          ) : null}
+          {doneCount ? <Text dimColor>{`  ${doneCount} done`}</Text> : null}
         </Box>
+      </Box>
+    )
+  })
+
+  // One line above the prompt: what to do now, wherever the pane is.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
+    const p = await read($, plan)
+    const now = current(p, await read($, done))
+    if (!now) return next(e)
+
+    const { Box, Text, Button } = $.ui.resolve(e)
+    return (
+      <Box>
+        <Text dimColor>Now </Text>
+        <Text bold>{now.title}</Text>
+        <Text dimColor>{meta(now) ? `  ${meta(now)}  ` : '  '}</Text>
+        <Button
+          key="band-start"
+          label="Start"
+          onPress={() => void $.prompt.fill({ text: `Let's start on: ${now.title}\n`, mode: 'insert' })}
+        />
+        <Text> </Text>
+        <Button key="band-done" label="Done" onPress={() => markDone($, now.title)} />
       </Box>
     )
   })
