@@ -34,6 +34,11 @@
       "name": "design-standards",
       "source": "./design-standards",
       "description": "Design Standards v2.1: core skill for every design task, audit skill for checks and critiques"
+    },
+    {
+      "name": "timesheet",
+      "source": "./timesheet",
+      "description": "Tracks your time with Claude per project or repo for billing: /time reports, a pane, CSV export, optional sync for cloud sessions"
     }
   ]
 }

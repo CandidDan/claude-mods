@@ -1,0 +1,49 @@
+{
+  "name": "timesheet",
+  "version": "0.1.0",
+  "description": "Tracks the time you spend working with Claude, per repo, for timesheets and billing: a status line, a pane, /time reports and CSV export, synced across machines and cloud sessions.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "idleMinutes": {
+      "type": "number",
+      "title": "Idle after (minutes)",
+      "description": "A gap longer than this between your activity ends a block of tracked time",
+      "default": 10
+    },
+    "roundTo": {
+      "type": "number",
+      "title": "Round up to (minutes)",
+      "description": "Rounds each project's time per day up to this increment in reports and exports, e.g. 6 for tenths of an hour; 0 leaves it exact",
+      "default": 0
+    },
+    "rate": {
+      "type": "number",
+      "title": "Hourly rate",
+      "description": "Shows an amount beside each project's hours in reports; 0 hides it",
+      "default": 0
+    },
+    "exportDir": {
+      "type": "string",
+      "title": "Export folder",
+      "description": "Where /time export writes its CSV; ~ is your home folder",
+      "default": "~/Documents/Timesheets"
+    },
+    "syncRepo": {
+      "type": "string",
+      "title": "Sync repository",
+      "description": "A private GitHub repository (owner/name) each session's time is pushed to and read back from, so cloud sessions and other machines count; empty keeps time on this machine only",
+      "default": ""
+    },
+    "githubToken": {
+      "type": "string",
+      "title": "GitHub token",
+      "description": "A token with read and write access to the sync repository's contents. Left empty, the mod uses the TIMESHEET_GITHUB_TOKEN variable, then gh auth token",
+      "default": "",
+      "sensitive": true
+    }
+  },
+  "author": {
+    "name": "Dan",
+    "url": "https://github.com/CandidDan"
+  }
+}
