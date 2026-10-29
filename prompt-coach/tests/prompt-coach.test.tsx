@@ -60,7 +60,7 @@ function world(on: On, store: Record<string, unknown> = {}) {
   const type = async (text: string) => {
     set.box = text
     await time.advance(1000)
-    await time.advance(2000)
+    await time.advance(3000)
     await time.settle()
   }
   return { seen, set, time, type }
@@ -88,7 +88,7 @@ test('a weak draft is rated in the band while it sits in the box, and Enter stil
   await start($)
   await type(WEAK)
   expect(seen.reviews).toBe(1)
-  expect(await bandText($)).toBe('Draft 2/5 · which page: home or pricing; what "off" means Improve itengine')
+  expect(await bandText($)).toBe('Draft 2/5 · which page: home or pricing Improve itengine')
 
   const r = await submit($, WEAK)
   expect(r.drop).toBeUndefined()
@@ -268,4 +268,15 @@ test('/coach sums up the ratings and the most common gaps', async ($, on) => {
   await start($)
   const r = await $.command.run({ command: 'coach', args: '' } as never)
   expect(r.text).toBe('Last 3 prompts: 3.3/5 on average. Most common gaps: no done criteria (2), vague scope (1). Mode: before.')
+})
+
+test('a long reason is clipped to the band\'s width, since the desktop wraps rather than truncates', async ($, on) => {
+  const { set, type } = world(on)
+  set.review = JSON.stringify({ score: 1, issues: ['Unclear which workstreams or flows relate to the 3.6.0 release and what progress means here'], gaps: ['scope'], questions: [] })
+  await start($)
+  await type(WEAK)
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop', props: { ...bandProps, bodyColumns: 60 } } as never)
+  const text = (await band.find({ type: 'Box' }))?.text ?? ''
+  await band.unmount()
+  expect(text).toBe('Draft 1/5 · Unclear which workstreams or flows relate to th… Improve itengine')
 })

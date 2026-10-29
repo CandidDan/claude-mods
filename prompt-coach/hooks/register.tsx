@@ -16,7 +16,7 @@ const HISTORY = 100
 const REVIEW_MS = 8000
 // How often the prompt box is read, and how long it must sit still to be rated.
 const TICK_MS = 1000
-const PAUSE_MS = 1500
+const PAUSE_MS = 2500
 const GAPS: readonly Gap[] = ['goal', 'context', 'scope', 'done', 'constraints', 'format', 'conflict']
 const GAP_WORDS: Record<Gap, string> = {
   goal: 'unclear goal',
@@ -50,6 +50,7 @@ Return JSON only, no prose, no code fences:
 Rules:
 - A prompt that answers the last reply's questions or picks from its options ("1 a, 2 as you recommend", "go with option b") scores 5: the reply carries the context.
 - A prompt that points at something shown ("this", "the screenshot") has it attached; do not mark it down for that.
+- The person may still be typing: never mark a prompt down for ending mid-sentence.
 - At most 3 issues, most important first, each naming the specific thing missing ("which page: home or pricing"), not a category.
 - At most 3 questions, only for things the person must decide; never about style or nice-to-haves. Give 2 or 3 short likely answers each.
 - Score 4 or 5: empty issues and questions.
@@ -223,6 +224,12 @@ async function finish($: EngineInterface, d: Draft, answers: Answer[]) {
 }
 
 /** The coach's part of the band, or null when it has nothing to show. */
+/** Characters that fit across the band; the desktop's proportional font fits about a third more than its column count. */
+const width = (e: RenderInput<'AbovePrompt'>) => Math.round((Number(e.props.bodyColumns) || 76) * (e.surface === 'desktop' ? 1.3 : 1))
+
+/** Cuts text to n characters with an ellipsis. */
+const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, Math.max(1, n - 1)).trimEnd()}…`)
+
 async function coachLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   const els = $.ui.resolve(e)
   const { Box, Button, Text } = els
@@ -236,7 +243,7 @@ async function coachLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
     return (
       <Box flexDirection="column">
         <Text wrap="truncate-end">
-          {q.q.endsWith('?') ? q.q : `${q.q}?`}
+          {clip(q.q.endsWith('?') ? q.q : `${q.q}?`, width(e) - 8)}
           <Text dimColor> ({d.step + 1}/{d.questions.length})</Text>
         </Text>
         <Box flexWrap="wrap">
@@ -251,19 +258,21 @@ async function coachLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
     )
   }
   if (d?.phase === 'offer') {
-    const why = d.issues.join('; ') || 'it leaves things to guess'
-    // One row: the reasons cut off with an ellipsis before the button gives way.
+    const tag = `${d.isDump ? 'Brain dump' : 'Draft'} ${d.score}/5`
+    const label = d.isDump ? 'Shape it into a brief' : 'Improve it'
+    // One row: the reason is clipped here, since the desktop wraps rather than truncates.
+    const why = clip(d.issues[0] ?? 'it leaves things to guess', width(e) - tag.length - 3 - (label.length + 8))
     return (
       <Box>
         <Box flexShrink={1}>
           <Text wrap="truncate-end">
-            <Text color="yellow">{d.isDump ? 'Brain dump' : 'Draft'} {d.score}/5</Text>
+            <Text color="yellow">{tag}</Text>
             <Text dimColor> · {why}</Text>
           </Text>
         </Box>
         <Box flexShrink={0}>
           <Text> </Text>
-          <Button key="coach-improve" label={d.isDump ? 'Shape it into a brief' : 'Improve it'} hotkey="i" onPress={() => void startImprove($)} />
+          <Button key="coach-improve" label={label} hotkey="i" onPress={() => void startImprove($)} />
         </Box>
       </Box>
     )
@@ -275,7 +284,7 @@ async function coachLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
     <Text wrap="truncate-end">
       <Text dimColor>Last prompt </Text>
       <Text color="yellow">{l.score}/5</Text>
-      <Text dimColor>{l.issue ? ` · ${l.issue}` : ''}</Text>
+      <Text dimColor>{l.issue ? ` · ${clip(l.issue, width(e) - 20)}` : ''}</Text>
     </Text>
   )
 }

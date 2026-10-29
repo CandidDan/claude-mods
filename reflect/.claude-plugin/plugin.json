@@ -1,6 +1,6 @@
 {
   "name": "reflect",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "When you correct Claude in a way that should stick, offers to save it as a one-line rule in this project's CLAUDE.md or your own.",
   "types": "./types/index.d.ts",
   "author": {

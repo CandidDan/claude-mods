@@ -86,19 +86,26 @@ async function save($: EngineInterface, where: 'project' | 'everywhere') {
   }
 }
 
+/** Characters that fit across the band; the desktop's proportional font fits about a third more than its column count. */
+const width = (e: RenderInput<'AbovePrompt'>) => Math.round((Number(e.props.bodyColumns) || 76) * (e.surface === 'desktop' ? 1.3 : 1))
+
+/** Cuts text to n characters with an ellipsis. */
+const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, Math.max(1, n - 1)).trimEnd()}…`)
+
 /** A drafted rule to save, or where one was saved; null otherwise. */
 async function rulesLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   const b = await read($, band)
   if (e.props.hasSurvey || !b || isOff) return null
   const { Box, Button, Text } = $.ui.resolve(e)
-  if (b.kind === 'saved') return <Text dimColor wrap="truncate-end">Reflect · {b.text}</Text>
-  // One row: the rule cuts off with an ellipsis before the buttons give way.
+  const cols = width(e)
+  if (b.kind === 'saved') return <Text dimColor wrap="truncate-end">Reflect · {clip(b.text, cols - 10)}</Text>
+  // One row: the rule is clipped here, since the desktop wraps rather than truncates.
   return (
     <Box>
       <Box flexShrink={1}>
         <Text wrap="truncate-end">
           <Text dimColor>Save as a rule? </Text>
-          <Text bold>{b.rule}</Text>
+          <Text bold>{clip(b.rule, Math.max(20, cols - 16 - 30))}</Text>
         </Text>
       </Box>
       <Box flexShrink={0}>

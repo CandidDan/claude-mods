@@ -290,6 +290,12 @@ function scheduleReplan($: EngineInterface, timezone: string, ms = 800): void {
   })
 }
 
+/** Characters that fit across the band; the desktop's proportional font fits about a third more than its column count. */
+const width = (e: RenderInput<'AbovePrompt'>) => Math.round((Number(e.props.bodyColumns) || 76) * (e.surface === 'desktop' ? 1.3 : 1))
+
+/** Cuts text to n characters with an ellipsis. */
+const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, Math.max(1, n - 1)).trimEnd()}…`)
+
 /** The Now item with Start and Done, or null when there is none to show. */
 async function nowLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   if (e.props.hasSurvey || (await read($, isHidden))) return null
@@ -298,14 +304,16 @@ async function nowLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   if (!now) return null
 
   const { Box, Text, Button } = $.ui.resolve(e)
+  const m = meta(now)
+  // One row: the title is clipped here, since the desktop wraps rather than truncates.
+  const title = clip(now.title, width(e) - 4 - (m ? m.length + 2 : 0) - 21)
   return (
-    // One row: the text cuts off with an ellipsis before the buttons give way.
     <Box>
       <Box flexShrink={1}>
         <Text wrap="truncate-end">
           <Text dimColor>Now </Text>
-          <Text bold>{now.title}</Text>
-          <Text dimColor>{meta(now) ? `  ${meta(now)}` : ''}</Text>
+          <Text bold>{title}</Text>
+          <Text dimColor>{m ? `  ${m}` : ''}</Text>
         </Text>
       </Box>
       <Box flexShrink={0}>
