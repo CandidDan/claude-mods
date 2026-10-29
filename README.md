@@ -9,6 +9,7 @@ Claude Code mods (function-hook plugins).
 | [prompt-coach](prompt-coach/) | Rates your draft as you type, says what's missing, offers to improve it |
 | [cache-clock](cache-clock/) | Countdown above the prompt until the prompt cache goes cold; opt-in **Keep warm** |
 | [reflect](reflect/) | Offers to save your corrections as one-line rules in `CLAUDE.md` |
+| [timesheet](timesheet/) | Your time with Claude per project or repo, for billing: `/time`, a pane, CSV export; cloud sessions sync through a private repo |
 | [design-standards](design-standards/) | Design Standards v2.1 as skills (core + audit); not a mod, skills only |
 
 ## Cowork
@@ -32,6 +33,7 @@ ln -s ~/Projects/mods/skills/design-standards-audit ~/.claude/skills/design-stan
 /plugin install prompt-coach@candiddan
 /plugin install cache-clock@candiddan
 /plugin install reflect@candiddan
+/plugin install timesheet@candiddan
 /plugin install design-standards@candiddan
 ```
 
