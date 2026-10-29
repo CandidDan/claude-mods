@@ -178,7 +178,7 @@ async function watch($: EngineInterface) {
     rated = { text, review: r }
     // Typed on while it was rated: the next pause rates the new text.
     if (!r || (await $.prompt.read()).text.trim() !== text || (await read($, draft))) return
-    if (r.score >= threshold) return
+    // A good draft is offered too, quietly, so Improve is there when wanted.
     await update($, draft, (): Draft => ({ text, score: r.score, issues: r.issues, isDump: words(text) >= DUMP_WORDS, questions: r.questions, phase: 'offer', step: 0, answers: [] }))
   } finally {
     reviewing = ''
@@ -258,16 +258,18 @@ async function coachLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
     )
   }
   if (d?.phase === 'offer') {
+    // A good draft is shown quietly, with Improve there if wanted.
+    const isGood = d.score >= threshold
     const tag = `${d.isDump ? 'Brain dump' : 'Draft'} ${d.score}/5`
-    const label = d.isDump ? 'Shape it into a brief' : 'Improve it'
+    const label = isGood ? 'Improve anyway' : d.isDump ? 'Shape it into a brief' : 'Improve it'
     // One row: the reason is clipped here, since the desktop wraps rather than truncates.
-    const why = clip(d.issues[0] ?? 'it leaves things to guess', width(e) - tag.length - 3 - (label.length + 8))
+    const why = clip(d.issues[0] ?? (isGood ? '' : 'it leaves things to guess'), width(e) - tag.length - 3 - (label.length + 8))
     return (
       <Box>
         <Box flexShrink={1}>
           <Text wrap="truncate-end">
-            <Text color="yellow">{tag}</Text>
-            <Text dimColor> · {why}</Text>
+            {isGood ? <Text dimColor>{tag}</Text> : <Text color="yellow">{tag}</Text>}
+            <Text dimColor>{why ? ` · ${why}` : ''}</Text>
           </Text>
         </Box>
         <Box flexShrink={0}>

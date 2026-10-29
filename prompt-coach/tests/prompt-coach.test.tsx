@@ -97,12 +97,15 @@ test('a weak draft is rated in the band while it sits in the box, and Enter stil
   expect(await bandText($)).toBe('engine')
 })
 
-test('a good draft shows nothing', async ($, on) => {
+test('a good draft shows its rating quietly, and Improve anyway rewrites it', async ($, on) => {
   const { seen, set, type } = world(on)
   set.review = goodReview
   await start($)
   await type(GOOD)
   expect(seen.reviews).toBe(1)
+  expect(await bandText($)).toBe('Draft 5/5 Improve anywayengine')
+  await press($, 'coach-improve')
+  expect(seen.filled).toEqual([BETTER])
   expect(await bandText($)).toBe('engine')
 })
 
@@ -183,7 +186,7 @@ test('the review sees the last reply from the transcript after a restart, and an
   await start($)
   await type('1 a as you recommend, 2 yes keep the button for now please')
   expect(seen.prompt).toContain('<last_reply>\nTwo questions: 1) a or b? 2) keep the button?\n</last_reply>')
-  expect(await bandText($)).toBe('engine')
+  expect(await bandText($)).toBe('Draft 5/5 Improve anywayengine')
 })
 
 test('a long weak draft is offered a brief', async ($, on) => {
@@ -198,12 +201,12 @@ test('a long weak draft is offered a brief', async ($, on) => {
   expect(seen.filled).toEqual([BETTER])
 })
 
-test('a 3/5 shows nothing by default', async ($, on) => {
+test('a 3/5 counts as good by default', async ($, on) => {
   const { set, type } = world(on)
   set.review = JSON.stringify({ score: 3, issues: ['which file'], gaps: ['scope'], questions: [] })
   await start($)
   await type(WEAK)
-  expect(await bandText($)).toBe('engine')
+  expect(await bandText($)).toBe('Draft 3/5 · which file Improve anywayengine')
 })
 
 test('a failed review shows nothing', async ($, on) => {

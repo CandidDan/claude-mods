@@ -1,6 +1,6 @@
 {
   "name": "prompt-coach",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Rates your draft while it sits in the prompt box, says what is missing when it is weak, and offers to improve it with a question or two. Never holds a prompt back. Long weak drafts get shaped into a brief.",
   "types": "./types/index.d.ts",
   "userConfig": {
