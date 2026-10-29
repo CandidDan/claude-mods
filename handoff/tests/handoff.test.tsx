@@ -146,20 +146,20 @@ async function pressBand($: Parameters<Parameters<typeof test>[1]>[0], key: stri
   await band.unmount()
 }
 
-test('past 200k it offers a handoff above the prompt; Hand off writes it and /clear picks it up', async ($, on) => {
+test('past 60% of the window it offers a handoff above the prompt; Hand off writes it and /clear picks it up', async ($, on) => {
   mock.clock(on, { now: Date.UTC(2026, 9, 28, 4, 30) })
   const files = disk(on, {})
   const live = context(on)
   on('model.fork', () => ({ value: { isAnswered: true as const, text: note, usage } }))
   await $.session.start(start)
 
-  live.tokens = 150_000
+  live.tokens = 550_000
   await $.turn.complete(turn)
   expect(await bandText($)).toBe('engine')
 
-  live.tokens = 212_000
+  live.tokens = 612_000
   await $.turn.complete(turn)
-  expect(await bandText($)).toBe('Context 212k · hand off to a fresh chat? Hand off Not nowengine')
+  expect(await bandText($)).toBe('Context 612k of 1M · hand off to a fresh chat? Hand off Not nowengine')
 
   await pressBand($, 'handoff')
   expect(files['/repo/HANDOFF.md']).toContain('# Handoff · ship the day mod')
@@ -174,27 +174,27 @@ test('past 200k it offers a handoff above the prompt; Hand off writes it and /cl
   expect(JSON.stringify(again)).not.toContain('ship the day mod')
 })
 
-test('Not now waits until the chat has grown another 50k', async ($, on) => {
+test('Not now waits until the chat has grown another tenth of its window', async ($, on) => {
   mock.clock(on)
   disk(on, {})
   const live = context(on)
   await $.session.start(start)
 
-  live.tokens = 210_000
+  live.tokens = 610_000
   await $.turn.complete(turn)
   await pressBand($, 'snooze')
   expect(await bandText($)).toBe('engine')
 
-  live.tokens = 240_000
+  live.tokens = 690_000
   await $.turn.complete(turn)
   expect(await bandText($)).toBe('engine')
 
-  live.tokens = 265_000
+  live.tokens = 715_000
   await $.turn.complete(turn)
-  expect(await bandText($)).toContain('Context 265k')
+  expect(await bandText($)).toContain('Context 715k')
 })
 
-test('offerAt 0 never offers', { options: { offerAt: 0 } }, async ($, on) => {
+test('offerAtPercent 0 never offers', { options: { offerAtPercent: 0 } }, async ($, on) => {
   mock.clock(on)
   disk(on, {})
   const live = context(on)

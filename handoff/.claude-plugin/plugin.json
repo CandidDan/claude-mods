@@ -1,6 +1,6 @@
 {
   "name": "handoff",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Writes HANDOFF.md from the session transcript on /handoff, at session end, or when a long chat offers it; the next session in that folder, or this one after /clear, picks it up.",
   "author": {
     "name": "Dan",
@@ -26,11 +26,11 @@
       "description": "Sessions with fewer completed turns are not worth a handoff",
       "default": 3
     },
-    "offerAt": {
+    "offerAtPercent": {
       "type": "number",
-      "title": "Offer at (tokens)",
-      "description": "Offer a handoff above the prompt once the context passes this many tokens; 0 never offers",
-      "default": 200000
+      "title": "Offer at (% of context)",
+      "description": "Offer a handoff above the prompt once the context is this full, as a percent of its window; 0 never offers",
+      "default": 60
     }
   }
 }

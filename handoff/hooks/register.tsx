@@ -7,7 +7,6 @@ const status = atom({ plugin: 'handoff', key: 'status' } as const, { wroteAt: ''
 const offer = atom({ plugin: 'handoff', key: 'offer' } as const, null as HandoffOffer | null)
 
 // "Not now" asks again once the chat has grown this much more.
-const SNOOZE_TOKENS = 50_000
 
 // Module-level: resets on hot reload, which only under-counts turns (safe).
 let turns = 0
@@ -15,6 +14,8 @@ let cwd = ''
 let pickedUp = false
 let turnsAtWrite = -1
 let snoozedUntil = 0
+// The context window the last usage read reported.
+let contextWindow = 200_000
 // A handoff written in this chat is picked up after its /clear.
 let isPendingClear = false
 
@@ -142,11 +143,13 @@ async function pickUp($: EngineInterface, file: string): Promise<boolean> {
   return !('deny' in result)
 }
 
-/** Offers a handoff once the live context passes `offerAt`, unless snoozed or just written. */
+/** Offers a handoff once the live context passes `offerAt` percent of its window, unless snoozed or just written. */
 async function checkOffer($: EngineInterface, offerAt: number) {
   if (offerAt <= 0) return
-  const tokens = (await $.session.usage()).context.tokens ?? 0
-  if (tokens < Math.max(offerAt, snoozedUntil) || turns === turnsAtWrite) return
+  const { context } = await $.session.usage()
+  const tokens = context.tokens ?? 0
+  contextWindow = context.window || contextWindow
+  if (tokens < Math.max((contextWindow * offerAt) / 100, snoozedUntil) || turns === turnsAtWrite) return
   const o = await read($, offer)
   if (o?.kind === 'offer' || o?.kind === 'writing') return
   await update($, offer, (): HandoffOffer => ({ kind: 'offer', tokens }))
@@ -166,11 +169,12 @@ async function handOff($: EngineInterface, file: string) {
 
 async function snooze($: EngineInterface) {
   const o = await read($, offer)
-  snoozedUntil = (o?.tokens ?? 0) + SNOOZE_TOKENS
+  // Not now asks again once the chat has grown another tenth of its window.
+  snoozedUntil = (o?.tokens ?? 0) + contextWindow / 10
   await update($, offer, () => null)
 }
 
-const k = (n: number) => `${Math.round(n / 1000)}k`
+const k = (n: number) => (n >= 1_000_000 ? `${Math.round(n / 100_000) / 10}M` : `${Math.round(n / 1000)}k`)
 
 /** The handoff offer and its progress, or null when there is none. */
 async function offerLine($: EngineInterface, e: RenderInput<'AbovePrompt'>, file: string) {
@@ -197,7 +201,7 @@ async function offerLine($: EngineInterface, e: RenderInput<'AbovePrompt'>, file
   return (
     <Box>
       <Box flexShrink={1}>
-        <Text dimColor wrap="truncate-end">Context {k(o.tokens)} · hand off to a fresh chat?</Text>
+        <Text dimColor wrap="truncate-end">Context {k(o.tokens)} of {k(contextWindow)} · hand off to a fresh chat?</Text>
       </Box>
       <Box flexShrink={0}>
         <Text> </Text>
@@ -213,7 +217,7 @@ export const register: Register = (on, options) => {
   const file = String(options.file ?? 'HANDOFF.md')
   const autoOnEnd = options.autoOnEnd !== false
   const minTurns = Number(options.minTurns ?? 3)
-  const offerAt = Number(options.offerAt ?? 200_000)
+  const offerAt = Number(options.offerAtPercent ?? 60)
 
   on('session.start', async ($, e, next) => {
     cwd = e.cwd
