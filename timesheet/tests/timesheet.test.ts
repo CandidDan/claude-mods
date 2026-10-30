@@ -22,6 +22,16 @@ function world(on: On, time: { now: () => number }, env: Record<string, string> 
   on('prompt.submit', ($, e) => ({ text: e.text }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
+  // The model writes "Did: <first note>" for each date it is asked about, or fails with `model.failure`.
+  const asked: string[] = []
+  const model = { failure: null as string | null }
+  const usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+  on('model.complete', ($, e) => {
+    asked.push(e.prompt)
+    if (model.failure) return { value: { isAnswered: false, reason: model.failure, status: 529, error: 'overloaded', usage } as never }
+    const text = [...e.prompt.matchAll(/^(\d{4}-\d{2}-\d{2})\n- (.+)$/gm)].map(m => `${m[1]}: Did: ${m[2]}`).join('\n')
+    return { value: { isAnswered: true, text, usage } as never }
+  })
   on('session.id', () => ({ value: session.id }))
   on('session.cwd', () => ({ value: session.root }))
   on('session.repo', () => ({ value: { root: session.root, remote: session.remote, internal: false, name: null } }))
@@ -44,7 +54,7 @@ function world(on: On, time: { now: () => number }, env: Record<string, string> 
       .filter(([p]) => p.startsWith(`${e.path}/`))
       .map(([p, f]) => ({ name: p.slice(e.path.length + 1), kind: 'file' as const, size: f.text.length, mtimeMs: f.mtimeMs, isLink: false })),
   }))
-  return { files, status, session }
+  return { files, status, session, asked, model }
 }
 
 const start = ($: Step) => $.session.start({ cwd: '/work/acme-site', surface: 'desktop', isInteractive: true })
@@ -144,8 +154,45 @@ test('export writes a CSV, rounded up and priced', { options: { roundTo: 6, rate
   const path = '/home/dan/Documents/Timesheets/timesheet-week-2026-10-28.csv'
   expect(said).toContain(path)
   const csv = w.files.get(path)!.text.trim().split('\n')
-  expect(csv[0]).toBe('Date,Project,Path,Minutes,Hours billed,Amount,Blocks')
-  expect(csv[1]).toBe('2026-10-28,acme-site,/work/acme-site,13.0,0.30,36.00,10:00-10:13')
+  expect(csv[0]).toBe('Date,Project,Path,Minutes,Hours billed,Amount,Blocks,Description')
+  expect(csv[1]).toBe('2026-10-28,acme-site,/work/acme-site,13.0,0.30,36.00,10:00-10:13,Did: do the thing')
+})
+
+test('notes keep what each prompt asked, not slash commands, and describe the day', async ($, on) => {
+  const clock = mock.clock(on, { now: T0 })
+  const w = world(on, clock)
+  await start($)
+  await $.prompt.submit({ text: 'Fix the  checkout\nvalidation' } as never)
+  await clock.advance(MIN)
+  await $.prompt.submit({ text: '/time today' } as never)
+  await $.prompt.submit({ text: 'x'.repeat(400) } as never)
+  await clock.advance(0)
+  const saved = JSON.parse(w.files.get(`${DIR}/s1.json`)!.text)
+  const notes = saved.segments[0].notes.map((n: { text: string }) => n.text)
+  expect(notes).toEqual(['Fix the checkout validation', `${'x'.repeat(159)}…`])
+  await time($, 'export today')
+  expect(w.asked).toHaveLength(1)
+  expect(w.asked[0]).toContain('Project: acme-site')
+  expect(w.asked[0]).toContain('- Fix the checkout validation')
+})
+
+test('with describe off, the export makes no model call and leaves the column empty', { options: { describe: false } }, async ($, on) => {
+  const clock = mock.clock(on, { now: T0 })
+  const w = world(on, clock)
+  await start($)
+  await exchange($, clock, 5 * MIN)
+  await time($, 'export today')
+  expect(w.asked).toHaveLength(0)
+  const csv = [...w.files].find(([p]) => p.endsWith('.csv'))![1].text.trim().split('\n')
+  expect(csv[1]!.endsWith(',10:00-10:05,')).toBe(true)
+})
+
+test('an export says when the model gave no descriptions', async ($, on) => {
+  const clock = mock.clock(on, { now: T0 })
+  world(on, clock).model.failure = 'api-error'
+  await start($)
+  await exchange($, clock, 5 * MIN)
+  expect(await time($, 'export today')).toMatch(/Descriptions are missing where the model gave no answer \(api-error\)/)
 })
 
 test('a block across midnight splits between the two days', async ($, on) => {
@@ -338,7 +385,12 @@ test('with a sync repo, each finished turn pushes the session to its month', SYN
   await exchange($, clock, 3 * MIN)
 
   const pushed = JSON.parse(gh.files.get('sessions/2026-10/s1.json')!.text)
-  expect(pushed.segments).toEqual([{ root: '/work/acme-site', start: T0, end: T0 + 10 * MIN, remote: 'candiddan/acme-site' }])
+  expect(pushed.segments).toEqual([
+    { root: '/work/acme-site', start: T0, end: T0 + 10 * MIN, remote: 'candiddan/acme-site', notes: [
+      { at: T0, text: 'do the thing' },
+      { at: T0 + 7 * MIN, text: 'do the thing' },
+    ] },
+  ])
   expect(gh.calls.every(c => c.auth === 'Bearer test-token')).toBe(true)
 })
 
