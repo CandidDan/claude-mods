@@ -1,6 +1,6 @@
 {
   "name": "timesheet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Tracks the time you spend working with Claude, per repo, for timesheets and billing: a status line, a pane, /time reports and CSV export, synced across machines and cloud sessions.",
   "types": "./types/index.d.ts",
   "userConfig": {
@@ -40,6 +40,12 @@
       "description": "A token with read and write access to the sync repository's contents. Left empty, the mod uses the TIMESHEET_GITHUB_TOKEN variable, then gh auth token",
       "default": "",
       "sensitive": true
+    },
+    "describe": {
+      "type": "boolean",
+      "title": "Describe the work",
+      "description": "Has /time export write a client-ready description per project per day from a one-line note of each prompt (one small model call per project); off leaves that column empty",
+      "default": true
     }
   },
   "author": {
