@@ -2,6 +2,8 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 
 type On = Parameters<TestBody>[1]
+// Typed loosely: the AskUserQuestion matcher's full type is too deep for tsc.
+type LooseOn = (event: string, match: object, hook: (_$: unknown, e: { questions: { question: string }[] }) => unknown) => void
 type Step = Parameters<TestBody>[0]
 
 const usage = { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
@@ -21,8 +23,17 @@ const bandProps = { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns
 
 /** The world beneath: a prompt box the test types into, a model whose review the test sets, a transcript. */
 function world(on: On, store: Record<string, unknown> = {}) {
-  const seen = { prompt: '', reviews: 0, rewrites: 0, filled: [] as string[], passed: [] as string[], toasts: [] as string[] }
-  const set = { box: '', review: weakReview, fails: false, rewriteFails: false, transcript: [] as { role: 'user' | 'assistant'; text: string }[] }
+  const seen = { prompt: '', reviews: 0, rewrites: 0, asked: [] as string[], filled: [] as string[], passed: [] as string[], toasts: [] as string[] }
+  const set = {
+    box: '',
+    review: weakReview,
+    fails: false,
+    rewriteFails: false,
+    transcript: [] as { role: 'user' | 'assistant'; text: string }[],
+    surfaces: ['desktop'] as string[],
+    // The dialog's answers in turn; null dismisses it.
+    answers: [] as (string | null)[],
+  }
   const time = mock.clock(on, { now: Date.UTC(2026, 9, 28, 10, 0) })
   mock.store(on, store)
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -35,6 +46,14 @@ function world(on: On, store: Record<string, unknown> = {}) {
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
     return <Text>engine</Text>
+  })
+  on('session.surfaces', () => ({ value: set.surfaces }) as never)
+  ;(on as unknown as LooseOn)('tool.call', { tool: 'AskUserQuestion' }, (_$, e) => {
+    const q = e.questions[0]?.question ?? ''
+    seen.asked.push(q)
+    const answer = set.answers.shift()
+    if (answer === null || answer === undefined) return { deny: 'dismissed' }
+    return { result: { questions: e.questions, answers: { [q]: answer } } }
   })
   on('prompt.read', () => ({ value: { text: set.box, cursor: set.box.length } }))
   on('session.messages', () => ({ value: set.transcript.map(m => ({ ...m, toolUses: [] })) }) as never)
@@ -271,6 +290,46 @@ test('/coach sums up the ratings and the most common gaps', async ($, on) => {
   await start($)
   const r = await $.command.run({ command: 'coach', args: '' } as never)
   expect(r.text).toBe('Last 3 prompts: 3.3/5 on average. Most common gaps: no done criteria (2), vague scope (1). Mode: before.')
+})
+
+test('without the band, a weak prompt waits on the dialog: questions, then the rewrite is sent in its place', async ($, on) => {
+  const { seen, set } = world(on)
+  set.surfaces = ['mobile']
+  set.answers = ['Improve it', 'Home', 'Send this']
+  await start($)
+  const r = await submit($, WEAK)
+  expect(r.drop).toBeUndefined()
+  expect(seen.asked[0]).toBe('This prompt rates 2/5: which page: home or pricing; what "off" means. Improve it first?')
+  expect(seen.asked[1]).toBe('Which page?')
+  expect(seen.asked[2]).toBe(`${BETTER}\n\nSend this instead of your original?`)
+  expect(seen.prompt).toContain('A: Home')
+  expect(seen.passed).toEqual([BETTER])
+  expect(seen.filled).toEqual([])
+})
+
+test('without the band, Send as is, Send my original and a dismissed dialog all send the prompt as typed', async ($, on) => {
+  const { seen, set } = world(on)
+  set.surfaces = []
+  await start($)
+  set.answers = ['Send as is']
+  await submit($, WEAK)
+  set.answers = ['Improve it', 'Pricing', 'Send my original']
+  await submit($, WEAK)
+  set.answers = [null]
+  await submit($, WEAK)
+  expect(seen.passed).toEqual([WEAK, WEAK, WEAK])
+  expect(seen.rewrites).toBe(1)
+})
+
+test('without the band, a good prompt goes straight through and still counts toward /coach', async ($, on) => {
+  const { seen, set } = world(on)
+  set.surfaces = ['mobile']
+  set.review = goodReview
+  await start($)
+  await submit($, GOOD)
+  expect(seen.asked).toEqual([])
+  expect(seen.passed).toEqual([GOOD])
+  expect((await $.command.run({ command: 'coach', args: '' } as never)).text).toContain('Last 1 prompts: 5.0/5')
 })
 
 test('a long reason is clipped to the band\'s width, since the desktop wraps rather than truncates', async ($, on) => {
