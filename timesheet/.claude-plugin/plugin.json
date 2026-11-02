@@ -1,6 +1,6 @@
 {
   "name": "timesheet",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Tracks the time you spend working with Claude, per repo, for timesheets and billing: a status line, a pane, /time reports and CSV export, synced across machines and cloud sessions.",
   "types": "./types/index.d.ts",
   "userConfig": {
