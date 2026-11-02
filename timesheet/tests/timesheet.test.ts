@@ -24,10 +24,12 @@ function world(on: On, time: { now: () => number }, env: Record<string, string> 
   on('turn.complete', ($, e) => ({ text: e.answer }))
   // The model writes "Did: <first note>" for each date it is asked about, or fails with `model.failure`.
   const asked: string[] = []
+  const systems: string[] = []
   const model = { failure: null as string | null }
   const usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
   on('model.complete', ($, e) => {
     asked.push(e.prompt)
+    systems.push(e.system ?? '')
     if (model.failure) return { value: { isAnswered: false, reason: model.failure, status: 529, error: 'overloaded', usage } as never }
     const text = [...e.prompt.matchAll(/^(\d{4}-\d{2}-\d{2})\n- (.+)$/gm)].map(m => `${m[1]}: Did: ${m[2]}`).join('\n')
     return { value: { isAnswered: true, text, usage } as never }
@@ -54,7 +56,7 @@ function world(on: On, time: { now: () => number }, env: Record<string, string> 
       .filter(([p]) => p.startsWith(`${e.path}/`))
       .map(([p, f]) => ({ name: p.slice(e.path.length + 1), kind: 'file' as const, size: f.text.length, mtimeMs: f.mtimeMs, isLink: false })),
   }))
-  return { files, status, session, asked, model }
+  return { files, status, session, asked, systems, model }
 }
 
 const start = ($: Step) => $.session.start({ cwd: '/work/acme-site', surface: 'desktop', isInteractive: true })
@@ -422,6 +424,44 @@ test('a cloud session pulled from the repo counts under this machine\'s folder f
   expect(out).not.toMatch(/\(/)
   expect(await time($, 'sync')).toBe('Synced with candiddan/timesheet-data: this session pushed, 1 other session pulled.')
   expect(gh.files.has('sessions/2026-10/s1.json')).toBe(true)
+})
+
+test('a cloud session finds this machine\'s folder from work before the range, and remembers it', SYNC, async ($, on) => {
+  const clock = mock.clock(on, { now: T0 + 60 * MIN })
+  const w = world(on, clock)
+  w.session.root = '/work/notes'
+  const gh = fakeGithub(on)
+  gh.files.set('sessions/2026-10/cloud1.json', {
+    sha: 'c1',
+    text: JSON.stringify({
+      sessionId: 'cloud1',
+      segments: [{ root: '/home/user/acme-site', start: T0, end: T0 + 20 * MIN, remote: 'candiddan/acme-site' }],
+    }),
+  })
+  // Two days ago, this machine worked in the same repo.
+  w.files.set(`${DIR}/s0.json`, {
+    mtimeMs: T0 - 2 * DAY,
+    text: JSON.stringify({ sessionId: 's0', segments: [{ root: '/work/acme-site', start: T0 - 2 * DAY, end: T0 - 2 * DAY + 5 * MIN, remote: 'candiddan/acme-site' }] }),
+  })
+  await start($)
+  await exchange($, clock, 2 * MIN)
+  const csvOf = () => [...w.files].find(([p]) => p.endsWith('.csv'))![1].text
+  await time($, 'export today')
+  expect(csvOf()).toMatch(/,acme-site,\/work\/acme-site,20\.0,/)
+  expect(JSON.parse(w.files.get(`${DIR}/remote/places.json`)!.text)).toEqual({ 'candiddan/acme-site': '/work/acme-site' })
+  // Once learnt, the place holds without reading old logs again.
+  w.files.delete(`${DIR}/s0.json`)
+  await time($, 'export today')
+  expect(csvOf()).toMatch(/,acme-site,\/work\/acme-site,20\.0,/)
+})
+
+test('the description prompt keeps figures and opinions out', async ($, on) => {
+  const clock = mock.clock(on, { now: T0 })
+  const w = world(on, clock)
+  await start($)
+  await exchange($, clock, 2 * MIN)
+  await time($, 'export today')
+  expect(w.systems[0]).toMatch(/leave out money, costs and other figures, opinions/)
 })
 
 test('/time sync with no sync repo says time stays on this machine', async ($, on) => {
