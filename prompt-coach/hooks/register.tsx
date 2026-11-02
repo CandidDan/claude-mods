@@ -27,6 +27,12 @@ const GAP_WORDS: Record<Gap, string> = {
   format: 'no output format',
   conflict: 'conflicting asks',
 }
+// Where there is no band (a cloud session, a phone), a weak prompt is held
+// and these are asked in the engine's question dialog instead.
+const IMPROVE = 'Improve it'
+const SEND = 'Send as is'
+const SEND_BETTER = 'Send this'
+const SEND_MINE = 'Send my original'
 // Origins a person typed at: the terminal, the desktop app, a phone.
 const TYPED = new Set(['composer', 'bridge', 'sdk'])
 // The desktop app also delivers its own messages (another session's report, a
@@ -223,7 +229,46 @@ async function finish($: EngineInterface, d: Draft, answers: Answer[]) {
   await update($, draft, () => null)
 }
 
-/** The coach's part of the band, or null when it has nothing to show. */
+/** Whether the session shows the band: only the terminal and the desktop app draw `AbovePrompt`. */
+const hasBand = async ($: EngineInterface) => (await $.session.surfaces()).some(s => s === 'terminal' || s === 'desktop')
+
+/** Asks in the question dialog; null when dismissed, or where no one can be asked. */
+const ask = ($: EngineInterface, question: string, options: string[], header: string) =>
+  $.ui.ask(question, { options, header }).then(
+    a => a.trim() || null,
+    () => null,
+  )
+
+/**
+ * Where there is no band: a weak prompt is held while its questions are asked
+ * in the dialog, then the rewrite is shown to send in its place. The app's
+ * prompt box is out of reach there, so the choice is sent rather than filled.
+ */
+async function hold($: EngineInterface, text: string, attached: number): Promise<string> {
+  const r = await review($, text, attached).catch(() => null)
+  if (!r) return text
+  await remember($, r)
+  if (r.score >= threshold) return text
+  const why = r.issues.join('; ') || 'it leaves things to guess'
+  const isDump = words(text) >= DUMP_WORDS
+  const offer = isDump ? `This reads like a brain dump (${r.score}/5): ${why}. Shape it into a brief first?` : `This prompt rates ${r.score}/5: ${why}. Improve it first?`
+  if ((await ask($, offer, [IMPROVE, SEND], `Prompt ${r.score}/5`)) !== IMPROVE) return text
+  const answers: Answer[] = []
+  for (const [i, x] of r.questions.entries()) {
+    answers.push({ q: x.q, a: await ask($, x.q.endsWith('?') ? x.q : `${x.q}?`, x.options, `Prompt ${i + 1}/${r.questions.length}`) })
+  }
+  $.ui.status('Improving your prompt…')
+  try {
+    const better = await rewrite($, text, answers)
+    return (await ask($, `${better}\n\nSend this instead of your original?`, [SEND_BETTER, SEND_MINE], 'Improved')) === SEND_BETTER ? better : text
+  } catch (err) {
+    $.ui.toast(`Could not improve it (${err instanceof Error ? err.message : String(err)}). Sent as is.`)
+    return text
+  } finally {
+    $.ui.status(undefined)
+  }
+}
+
 /** Characters that fit across the band; the desktop's proportional font fits about a third more than its column count. */
 const width = (e: RenderInput<'AbovePrompt'>) => Math.round((Number(e.props.bodyColumns) || 76) * (e.surface === 'desktop' ? 1.3 : 1))
 
@@ -325,13 +370,19 @@ export const register: Register = (on, options) => {
     return r
   })
 
-  // Every prompt goes through as typed; the coach only clears its line and keeps score.
+  // With the band, every prompt goes through as typed; the coach only clears its
+  // line and keeps score. Without it, a weak prompt waits on the dialog.
   on('prompt.submit', async ($, e, next) => {
     const text = e.text.trim()
     const isOurs = !!improved && text === improved.trim()
     if (isOurs) improved = ''
     if (await read($, draft)) await update($, draft, () => null)
     if (mode === 'off' || isOurs || e.isMeta || e.command || !TYPED.has(e.origin.kind) || !isRateable(text)) return next(e)
+
+    if (mode === 'before' && !(await hasBand($))) {
+      const sent = await hold($, text, e.attachments?.length ?? 0)
+      return next(sent === text ? e : { ...e, text: sent })
+    }
 
     if (mode === 'before') {
       if (rated.text === text && rated.review) void remember($, rated.review).catch(() => undefined)

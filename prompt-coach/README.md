@@ -1,6 +1,6 @@
 # prompt-coach
 
-Rates your draft while it sits in the prompt box and tells you when it's weak and why, then offers to fix it, all in the band above the prompt box. It never holds a prompt back: Enter always sends what you typed, attachments and all.
+Rates your draft while it sits in the prompt box and tells you when it's weak and why, then offers to fix it, all in the band above the prompt box. In the terminal and the desktop app it never holds a prompt back: Enter always sends what you typed, attachments and all.
 
 ```
 Draft 2/5 · which page: home or pricing  [Improve it]
@@ -16,6 +16,8 @@ Draft 4/5  [Improve anyway]
 - **Context:** the review sees Claude's last reply, read from the conversation even after a restart, so answers to Claude's own questions ("1 a, 2 as you recommend") rate well. A prompt that points at a screenshot isn't marked down for it.
 - **`/coach`** sums up your last 100 ratings: your average, and your most common gaps (no done criteria, vague scope, missing context…).
 - **`/coach after`** stops rating drafts and rates each prompt once it's sent, showing the last rating in the band instead. `/coach before` switches back, and `/coach off` stops it.
+
+**Cloud sessions and phones.** The band shows only in the terminal and the desktop app, and a cloud session's prompt box sits in the app, out of the coach's reach. So where there is no band, the coach checks each prompt as you send it instead. A weak one waits while it asks **Improve it** or **Send as is** in a question card, then the questions one card at a time, then shows the rewrite with **Send this** or **Send my original**. A good prompt, a dismissed card or a failed review sends what you typed. `/coach after` there rates without asking, for `/coach` to sum up.
 
 **Cost and speed.** One small Haiku review per draft, each time you pause on new text of 8 words or more. Only **Improve it** makes the bigger Sonnet call to rewrite.
 
