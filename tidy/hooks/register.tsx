@@ -142,16 +142,23 @@ export const register: Register = (on, options) => {
           {shown ? summary(shown) : 'Run /tidy to look for finished sessions.'}
         </Text>
         {rows.length > 0 && (
-          <Box flexDirection="column">
+          // Buttons are a line tall in the terminal, taller elsewhere: only there do rows need a gap.
+          <Box flexDirection="column" rowGap={e.surface === 'terminal' ? 0 : 1}>
             {rows.map(row => (
-              <Box key={row.id} columnGap={1}>
-                <Button key={`archive-${row.id}`} label="Archive" dimColor onPress={archiveOne(row)} />
-                <Text wrap="truncate">
-                  {row.title} <Text dimColor>
+              // The title gives way to the age and PR, which always show whole.
+              <Box key={row.id} columnGap={1} alignItems="center">
+                <Box flexShrink={0}>
+                  <Button key={`archive-${row.id}`} label="Archive" dimColor onPress={archiveOne(row)} />
+                </Box>
+                <Box flexShrink={1} minWidth={0}>
+                  <Text wrap="truncate">{row.title}</Text>
+                </Box>
+                <Box flexShrink={0}>
+                  <Text dimColor tabular>
                     {ago(row.lastActivityAt, now)}
                     {row.pr ? ` · PR #${row.pr} ${row.prState?.toLowerCase()}` : ''}
                   </Text>
-                </Text>
+                </Box>
               </Box>
             ))}
           </Box>

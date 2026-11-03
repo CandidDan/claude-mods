@@ -73,8 +73,11 @@ test('/tidy lists only idle sessions with no open PR, oldest first, on every sur
   expect((await tidy($)).text).toBe('3 finished sessions ready to archive.')
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
-    const rows = (await ui.findAll({ type: 'Text', text: /Ship timesheet|Heavy usage|Abandoned|Onboarding|Busy|Keep me|Just now/ })).map(r => r.text)
-    expect(rows).toEqual(['Heavy usage sessions 4d', 'Ship timesheet 30h · PR #20 merged', 'Abandoned idea 25h · PR #7 closed'])
+    const titles = (await ui.findAll({ type: 'Text', text: /Ship timesheet|Heavy usage|Abandoned|Onboarding|Busy|Keep me|Just now/ })).map(r => r.text)
+    expect(titles).toEqual(['Heavy usage sessions', 'Ship timesheet', 'Abandoned idea'])
+    // The age and PR sit apart from the title, so a long title can't push them off the row.
+    const ages = (await ui.findAll({ type: 'Text', text: /^\d+[hd]( · PR|$)/ })).map(r => r.text)
+    expect(ages).toEqual(['4d', '30h · PR #20 merged', '25h · PR #7 closed'])
     await ui.unmount()
   }
 })
