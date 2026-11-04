@@ -10,6 +10,7 @@ Claude Code mods (function-hook plugins).
 | [cache-clock](cache-clock/) | Countdown above the prompt until the prompt cache goes cold; opt-in **Keep warm** |
 | [reflect](reflect/) | Offers to save your corrections as one-line rules in `CLAUDE.md` |
 | [timesheet](timesheet/) | Your time with Claude per project or repo, for billing: `/time`, a pane, CSV export; cloud sessions sync through a private repo |
+| [back](back/) | Jump back to the message you sent: a button under long replies, and `/back` |
 | [tidy](tidy/) | `/tidy` pane of finished sessions idle in the desktop app (no open PR, quiet a day), with an **Archive** button each |
 | [design-standards](design-standards/) | Design Standards v2.1 as skills (core + audit); not a mod, skills only |
 

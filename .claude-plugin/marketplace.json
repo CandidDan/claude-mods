@@ -41,6 +41,11 @@
       "description": "Tracks your time with Claude per project or repo for billing: /time reports, a pane, CSV export, optional sync for cloud sessions"
     },
     {
+      "name": "back",
+      "source": "./back",
+      "description": "Jump back to the message you sent: a button under long replies, and /back from anywhere"
+    },
+    {
       "name": "tidy",
       "source": "./tidy",
       "description": "Finds finished sessions sitting idle in the desktop app (no open PR, quiet for a day) and archives them from a /tidy pane"
