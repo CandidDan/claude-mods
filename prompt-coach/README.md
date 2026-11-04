@@ -1,27 +1,23 @@
 # prompt-coach
 
-Rates your draft while it sits in the prompt box and tells you when it's weak and why, then offers to fix it, all in the band above the prompt box. In the terminal and the desktop app it never holds a prompt back: Enter always sends what you typed, attachments and all.
+Quiet hints on your draft. When a prompt sitting in the box leaves something real to guess, one dim line above the box says what's worth adding. Nothing else: no score, no buttons, no questions, and Enter always sends what you typed.
 
 ```
-Draft 2/5 · which page: home or pricing  [Improve it]
-Draft 4/5  [Improve anyway]
+Worth saying: Which page, home or pricing?
 ```
 
-- **Rated as you type.** Once your draft has sat still for a moment and is 8 words or more, it gets one quick review. A weak one shows its rating and what's missing above the box. Change the draft and the rating goes until the next pause.
-- **Improve it** asks up to three quick questions in the band, one at a time: a button for each likely answer, a field to type your own, and **Skip**. It then rewrites the prompt in your voice and puts it in the prompt box for you to check and send.
-- **Good drafts** show their rating quietly, with **Improve anyway** for when you want the questions and a rewrite all the same.
-- **Ignore it** by just pressing Enter: the prompt goes as you typed it, and the band clears.
-- **Brain dumps:** a weak draft of 120 words or more shows as `Brain dump 2/5` with **Shape it into a brief**, which writes the four-part brief: the job, the why, the guardrails, done means.
+- **Only when it matters.** Once your draft has sat still for a moment and is 8 words or more, it gets one quick look. Most drafts get no line at all. A hint shows only when Claude would have to guess at something that changes the result, never for style, tone or length.
+- **A question, not a grade.** The hint is the one thing to answer ("Which test file?"), so you can add it in a few words or ignore it.
+- **Goes when you move on.** Edit the draft and the line goes until the next pause; send it and the line clears.
 - **Left alone:** drafts under 8 words ("yes, do the next one"), slash commands, and the desktop app's own messages, such as another session's report.
-- **Context:** the review sees Claude's last reply, read from the conversation even after a restart, so answers to Claude's own questions ("1 a, 2 as you recommend") rate well. A prompt that points at a screenshot isn't marked down for it.
-- **`/coach`** sums up your last 100 ratings: your average, and your most common gaps (no done criteria, vague scope, missing context…).
-- **`/coach after`** stops rating drafts and rates each prompt once it's sent, showing the last rating in the band instead. `/coach before` switches back, and `/coach off` stops it.
+- **Context:** the look sees Claude's last reply, read from the conversation even after a restart, so answers to Claude's own questions ("1 a, 2 as you recommend") don't get hints.
+- **`/coach`** sums up your last 100 sent prompts: your average, and your most common gaps (no done criteria, vague scope, missing context…). **`/coach off`** stops the hints and **`/coach on`** brings them back.
 
-**Cloud sessions and phones.** The band shows only in the terminal and the desktop app, and a cloud session's prompt box sits in the app, out of the coach's reach. So where there is no band, the coach checks each prompt as you send it instead. A weak one waits while it asks **Improve it** or **Send as is** in a question card, then the questions one card at a time, then shows the rewrite with **Send this** or **Send my original**. A good prompt, a dismissed card or a failed review sends what you typed. `/coach after` there rates without asking, for `/coach` to sum up.
+**Where it shows.** The line draws in the band above the prompt box, which only the terminal and the desktop app show. Cloud sessions get no hints.
 
-**Cost and speed.** One small Haiku review per draft, each time you pause on new text of 8 words or more. Only **Improve it** makes the bigger Sonnet call to rewrite.
+**Cost.** One small Haiku call per draft, each time you pause on new text of 8 words or more.
 
-**Sharing the band.** The coach draws its line and leaves room for any other mod's beneath it (day's Now item, cache-clock, reflect, handoff), so none of them hides another. Each line keeps to one row, cut off with an ellipsis when the band is narrow. The bar between a weak draft and a good one is set by **Offer below** in the mod's settings (default 3: 1 and 2 out of 5 are weak).
+**From 0.6.** The ratings, Improve, the follow-up questions, the rewrite and the cloud question cards are gone, and `/coach before` and `/coach after` are now `/coach on`. A saved `off` stays off. **Hint below** in the mod's settings sets the bar (default 3: hints on drafts rated 1 or 2).
 
 ## Install
 
