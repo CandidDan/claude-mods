@@ -1,0 +1,17 @@
+{
+  "name": "back",
+  "version": "0.1.0",
+  "description": "Jump back to the message you sent: a button under long replies, and /back from anywhere.",
+  "userConfig": {
+    "minRows": {
+      "type": "number",
+      "title": "Long reply",
+      "description": "Rows a reply needs before it shows the Back button",
+      "default": 30
+    }
+  },
+  "author": {
+    "name": "Dan",
+    "url": "https://github.com/CandidDan"
+  }
+}
