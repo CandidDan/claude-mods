@@ -5,6 +5,7 @@ A live **Today** pane in Claude Code: what the next few hours look like and what
 - `/today` — plan the default window (4h); `/today eod`, `/today 2h`, `/today off` (hides the pane and the band)
 - The pane shows **Now** (one item, why, Start / Done), **Then** (one line each, with time and who: you or claude) and a one-line **Schedule**
 - A band above the prompt shows the Now item with **Start** and **Done**, wherever the pane is
+- In the **Mods** pane (the `mods` mod), the Now item with **Start** and **Done**, the one after it, and **Today ›**
 - **Done** moves the next item up; the next replan is told what's done and leaves it out
 - Replans after every turn, and on a timer (45 min; configurable)
 - Pulls today's events from any connected MCP calendar (`*calendar*__list_events`)

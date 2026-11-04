@@ -490,3 +490,24 @@ test('a folder beyond ASCII is pushed as UTF-8', SYNC, async ($, on) => {
   await exchange($, clock, 2 * MIN)
   expect(JSON.parse(gh.files.get('sessions/2026-10/s1.json')!.text).segments[0].root).toBe('/work/café ✓ 😀')
 })
+
+test('today\'s time sits at the foot of the Mods pane, with the way to the timesheet', async ($, on) => {
+  const clock = mock.clock(on, { now: T0 })
+  world(on, clock)
+  const opened: string[] = []
+  on('ui.open', ($, e) => {
+    opened.push(e.id)
+    return { value: { isPlaced: true } }
+  })
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return (globalThis as unknown as { h: (...a: unknown[]) => never }).h(Text, null, 'engine')
+  })
+  await start($)
+  await exchange($, clock, 3 * MIN)
+  const pane = await $.ui.mount({ ...PANE, requestId: 'mods', surface: 'mobile' } as never)
+  expect((await pane.find({ type: 'Box' }))?.text).toBe('engineTime acme-site · 3m today Timesheet ›')
+  await pane.press({ key: 'timesheet-open' })
+  await clock.advance(0)
+  expect(opened).toEqual(['timesheet'])
+})

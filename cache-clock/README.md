@@ -13,6 +13,8 @@ A line above the prompt counting down until this chat's prompt cache goes cold, 
 
 Subagents' requests are left out: they keep caches of their own.
 
+In the **Mods** pane (the `mods` mod), the same line sits at the foot, with **Keep warm**, for cloud sessions where there is no band.
+
 ## Install
 
 ```
