@@ -12,6 +12,7 @@ Claude Code mods (function-hook plugins).
 | [timesheet](timesheet/) | Your time with Claude per project or repo, for billing: `/time`, a pane, CSV export; cloud sessions sync through a private repo |
 | [mods](mods/) | One **Mods** pane for cloud sessions: asks, what's next and status from your other mods; `/mods` anywhere |
 | [back](back/) | Jump back to the message you sent: a button under long replies, and `/back` |
+| [tidy](tidy/) | `/tidy` pane of finished sessions idle in the desktop app (no open PR, quiet a day), with an **Archive** button each |
 | [design-standards](design-standards/) | Design Standards v2.1 as skills (core + audit); not a mod, skills only |
 
 ## Cowork
@@ -37,6 +38,7 @@ ln -s ~/Projects/mods/skills/design-standards-audit ~/.claude/skills/design-stan
 /plugin install reflect@candiddan
 /plugin install timesheet@candiddan
 /plugin install mods@candiddan
+/plugin install tidy@candiddan
 /plugin install design-standards@candiddan
 ```
 

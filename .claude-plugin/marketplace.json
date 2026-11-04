@@ -49,6 +49,11 @@
       "name": "mods",
       "source": "./mods",
       "description": "One Mods pane for cloud sessions: asks, what's next and status from your other mods; /mods opens it anywhere"
+    },
+    {
+      "name": "tidy",
+      "source": "./tidy",
+      "description": "Finds finished sessions sitting idle in the desktop app (no open PR, quiet for a day) and archives them from a /tidy pane"
     }
   ]
 }
