@@ -44,6 +44,11 @@
       "name": "back",
       "source": "./back",
       "description": "Jump back to the message you sent: a button under long replies, and /back from anywhere"
+    },
+    {
+      "name": "mods",
+      "source": "./mods",
+      "description": "One Mods pane for cloud sessions: asks, what's next and status from your other mods; /mods opens it anywhere"
     }
   ]
 }

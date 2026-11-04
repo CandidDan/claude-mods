@@ -7,7 +7,7 @@
 set -e
 claude plugin marketplace add CandidDan/claude-mods || true
 claude plugin marketplace update candiddan
-for mod in day handoff prompt-coach cache-clock reflect timesheet back; do
+for mod in day handoff prompt-coach cache-clock reflect timesheet back mods; do
   claude plugin install "$mod@candiddan" --scope user
   claude plugin update "$mod@candiddan" --scope user
 done

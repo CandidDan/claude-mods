@@ -290,8 +290,11 @@ function scheduleReplan($: EngineInterface, timezone: string, ms = 800): void {
   })
 }
 
+// The band above the prompt, or the Mods pane.
+type Site = RenderInput<'AbovePrompt'> | RenderInput<'Pane'>
+
 /** Characters that fit across the band; the desktop's proportional font fits about a third more than its column count. */
-const width = (e: RenderInput<'AbovePrompt'>) => Math.round((Number(e.props.bodyColumns) || 76) * (e.surface === 'desktop' ? 1.3 : 1))
+const width = (e: Site) => Math.round((Number(e.props.bodyColumns) || 76) * (e.surface === 'desktop' ? 1.3 : 1))
 
 /** Cuts text to n characters with an ellipsis. */
 const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, Math.max(1, n - 1)).trimEnd()}…`)
@@ -471,6 +474,48 @@ export const register: Register = (on, options) => {
           />
           {doneCount ? <Text dimColor>{`  ${doneCount} done`}</Text> : null}
         </Box>
+      </Box>
+    )
+  })
+
+  // What's next, under the asks in the Mods pane: Now, the one after it, and the way to the whole day.
+  // A pane is narrower than the band: the title has a line to itself, the buttons go under it.
+  on('ui.render', { component: 'Pane', requestId: 'mods' }, async ($, e, next) => {
+    const p = await read($, plan)
+    const doneTitles = await read($, done)
+    const now = current(p, doneTitles)
+    if (!now || (await read($, isHidden))) return next(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const m = meta(now)
+    const then = p?.next.find(i => i !== now && !doneTitles.includes(i.title))
+    return (
+      <Box flexDirection="column">
+        <Text>
+          <Text dimColor>Now </Text>
+          <Text bold>{now.title}</Text>
+        </Text>
+        <Box>
+          <Text dimColor>{m ? `${m}  ` : ''}</Text>
+          <Button
+            key="day-start"
+            label="Start"
+            onPress={() => void $.prompt.fill({ text: `Let's start on: ${now.title}\n`, mode: 'insert' })}
+          />
+          <Text> </Text>
+          <Button key="day-done" label="Done" onPress={() => markDone($, now.title)} />
+        </Box>
+        <Box>
+          <Box flexShrink={1}>
+            <Text dimColor wrap="truncate-end">
+              {then ? `Then ${clip(then.title, width(e) - 16)}` : ' '}
+            </Text>
+          </Box>
+          <Box flexShrink={0}>
+            <Text> </Text>
+            <Button key="day-today" label="Today ›" onPress={() => void $.ui.open({ id: PANE, title: TITLE, columns: 48 })} />
+          </Box>
+        </Box>
+        {await next(e)}
       </Box>
     )
   })

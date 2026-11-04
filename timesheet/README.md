@@ -25,6 +25,8 @@ The token: the `githubToken` option (kept in secure storage), else the `TIMESHEE
 
 **Descriptions.** Each prompt you send is kept with its block as a one-line note (up to 160 characters; slash commands are skipped). An export sends each project's notes for the range, day by day, to Haiku in one call per project, and writes back one line per day that says what was worked on, without figures, costs or judgements of the work. The notes stay in your files and in your sync repository, if you set one, and go to the model only when you export. Turn off "Describe the work" to leave the column empty.
 
+In the **Mods** pane (the `mods` mod), today's time for this project sits at the foot, with **Timesheet ›** to open the pane.
+
 ## Install
 
 ```

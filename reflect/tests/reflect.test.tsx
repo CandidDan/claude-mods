@@ -127,3 +127,22 @@ test('/reflect off stops the checks in every chat', async ($, on) => {
   expect(seen.classified).toBe(0)
   expect((await $.command.run({ command: 'reflect', args: 'on' })).text).toContain('Reflect is on')
 })
+
+const MODS = {
+  plugin: 'reflect',
+  component: 'Pane',
+  requestId: 'mods',
+  props: { title: 'Mods', isFocused: false, bodyColumns: 48, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
+} as const
+
+test('the rule offer shows on top of the Mods pane too, and saves from there', async ($, on) => {
+  const files: Record<string, string> = { '/work/CLAUDE.md': '# Project\n' }
+  world(on, files)
+  await exchange($, "No, it's colour. Always use British spelling.")
+  const pane = await $.ui.mount({ ...MODS, surface: 'mobile' } as never)
+  expect((await pane.find({ type: 'Box' }))?.text).toMatch(/^Save as a rule\? Write British.* This project Everywhere Skipengine$/)
+  await pane.press({ key: 'reflect-project' })
+  await pane.unmount()
+  await time.settle()
+  expect(files['/work/CLAUDE.md']).toContain(`- ${RULE}`)
+})

@@ -22,6 +22,8 @@ declare module 'claude-code' {
       isPaused: boolean
       range: string
       expanded: string | null
+      /** The status line's words, "mods · 1h 20m today", for the Mods pane */
+      today: string
       view: Shaped<PaneView | null>
     }
   }

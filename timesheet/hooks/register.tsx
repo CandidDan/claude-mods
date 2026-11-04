@@ -6,6 +6,8 @@ import type { PaneRow, PaneView, Segment, SessionLog } from '../types'
 const isPaused = atom({ plugin: 'timesheet', key: 'isPaused' } as const, false)
 const paneRange = atom({ plugin: 'timesheet', key: 'range' } as const, 'week')
 const expanded = atom({ plugin: 'timesheet', key: 'expanded' } as const, null)
+// The status line's words, for the Mods pane's row to read.
+const today = atom({ plugin: 'timesheet', key: 'today' } as const, '')
 // Change the tag when PaneView's fields change: it declines what an earlier version stored.
 const view = atom({ plugin: 'timesheet', key: 'view' } as const, null, { shape: 'view-1' })
 
@@ -527,7 +529,10 @@ async function exportCsv($: EngineInterface, range: Range, word: string) {
 }
 
 async function showStatus($: EngineInterface) {
-  if (await read($, isPaused)) return $.ui.status('⏱ paused · /time resume')
+  if (await read($, isPaused)) {
+    await update($, today, () => 'paused · /time resume')
+    return $.ui.status('⏱ paused · /time resume')
+  }
   const now = await $.clock.now()
   const range = { from: dayStart(now), to: now, label: 'today' }
   const root = await currentRoot($)
@@ -536,7 +541,9 @@ async function showStatus($: EngineInterface) {
   const days = tally(await segmentsSince($, range.from), range, nameMap).get(project.id)?.days
   const ms = days ? [...days.values()].reduce((sum, d) => sum + d.ms, 0) : 0
   const name = project.name ?? basename(root)
-  $.ui.status(`⏱ ${name} · ${duration(ms)} today`)
+  const words = `${name} · ${duration(ms)} today`
+  await update($, today, () => words)
+  $.ui.status(`⏱ ${words}`)
 }
 
 /** Works out what the pane shows for its range; the draw only reads the result. */
@@ -769,6 +776,30 @@ export const register: Register = (on, options) => {
         <Box columnGap={1}>
           <Button key="export" label="Export CSV" onPress={exportNow} />
           <Text dimColor>{shown ? shown.label : ''}</Text>
+        </Box>
+      </Box>
+    )
+  })
+
+  // Status, at the foot of the Mods pane: today's time here, and the way to the timesheet.
+  on('ui.render', { component: 'Pane', requestId: 'mods' }, async ($, e, next) => {
+    const words = await read($, today)
+    if (!words) return next(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column">
+        {await next(e)}
+        <Box>
+          <Box flexShrink={1}>
+            <Text wrap="truncate-end">
+              <Text dimColor>Time </Text>
+              <Text>{words}</Text>
+            </Text>
+          </Box>
+          <Box flexShrink={0}>
+            <Text> </Text>
+            <Button key="timesheet-open" label="Timesheet ›" onPress={() => void openPane($)} />
+          </Box>
         </Box>
       </Box>
     )
