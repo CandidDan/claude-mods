@@ -2,80 +2,45 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 
 type On = Parameters<TestBody>[1]
-// Typed loosely: the AskUserQuestion matcher's full type is too deep for tsc.
-type LooseOn = (event: string, match: object, hook: (_$: unknown, e: { questions: { question: string }[] }) => unknown) => void
 type Step = Parameters<TestBody>[0]
 
 const usage = { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
 const WEAK = 'make the landing page better and fix the stuff that is off'
 const GOOD = 'In src/pages/pricing.tsx, raise the Pro price to $24 and update the test in pricing.test.tsx to match'
-const BETTER = 'In src/pages/home.tsx, tighten the hero copy and fix the CTA spacing on mobile. Done means it matches the Figma frame.'
-const weakReview = JSON.stringify({
-  score: 2,
-  issues: ['which page: home or pricing', 'what "off" means'],
-  gaps: ['scope', 'done'],
-  questions: [{ q: 'Which page?', options: ['Home', 'Pricing'] }],
-})
-const goodReview = JSON.stringify({ score: 5, issues: [], gaps: [], questions: [] })
+const weakReview = JSON.stringify({ score: 2, issues: ['Which page, home or pricing?', 'What looks off?'], gaps: ['scope', 'done'] })
+const fairReview = JSON.stringify({ score: 3, issues: ['Which test file?'], gaps: ['scope'] })
+const goodReview = JSON.stringify({ score: 5, issues: [], gaps: [] })
 const composer = { kind: 'composer' } as const
 const BAND = { plugin: 'prompt-coach', component: 'AbovePrompt' } as const
 const bandProps = { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100 }
 
 /** The world beneath: a prompt box the test types into, a model whose review the test sets, a transcript. */
 function world(on: On, store: Record<string, unknown> = {}) {
-  const seen = { prompt: '', reviews: 0, rewrites: 0, asked: [] as string[], filled: [] as string[], passed: [] as string[], toasts: [] as string[] }
-  const set = {
-    box: '',
-    review: weakReview,
-    fails: false,
-    rewriteFails: false,
-    transcript: [] as { role: 'user' | 'assistant'; text: string }[],
-    surfaces: ['desktop'] as string[],
-    // The dialog's answers in turn; null dismisses it.
-    answers: [] as (string | null)[],
-  }
-  const time = mock.clock(on, { now: Date.UTC(2026, 9, 28, 10, 0) })
+  const seen = { prompt: '', reviews: 0, passed: [] as string[] }
+  const set = { box: '', review: weakReview, fails: false, transcript: [] as { role: 'user' | 'assistant'; text: string }[] }
+  const time = mock.clock(on, { now: Date.UTC(2026, 10, 4, 10, 0) })
   mock.store(on, store)
   on('session.start', ($, e) => ({ cwd: e.cwd }))
-  on('command.register', () => ({ value: {} }))
-  on('ui.toast', ($, e) => {
-    seen.toasts.push(String((e as { text?: string }).text ?? e))
-    return { value: undefined }
-  })
+  on('command.register', () => ({ value: { command: 'coach' } }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
     return <Text>engine</Text>
   })
-  on('session.surfaces', () => ({ value: set.surfaces }) as never)
-  ;(on as unknown as LooseOn)('tool.call', { tool: 'AskUserQuestion' }, (_$, e) => {
-    const q = e.questions[0]?.question ?? ''
-    seen.asked.push(q)
-    const answer = set.answers.shift()
-    if (answer === null || answer === undefined) return { deny: 'dismissed' }
-    return { result: { questions: e.questions, answers: { [q]: answer } } }
-  })
   on('prompt.read', () => ({ value: { text: set.box, cursor: set.box.length } }))
   on('session.messages', () => ({ value: set.transcript.map(m => ({ ...m, toolUses: [] })) }) as never)
   on('model.complete', ($, e) => {
-    const isReview = String(e.system ?? '').includes('Return JSON only')
     seen.prompt = String(e.prompt)
-    if (isReview) seen.reviews += 1
-    else seen.rewrites += 1
-    if (set.fails || (!isReview && set.rewriteFails)) return { value: { isAnswered: false as const, reason: 'api-error' as const, status: 529, error: 'overloaded', usage } }
-    return { value: { isAnswered: true as const, text: isReview ? set.review : BETTER, usage } }
-  })
-  on('prompt.fill', ($, e) => {
-    seen.filled.push(e.text)
-    set.box = e.text
-    return { isFilled: true as const }
+    seen.reviews += 1
+    if (set.fails) return { value: { isAnswered: false as const, reason: 'api-error' as const, status: 529, error: 'overloaded', usage } }
+    return { value: { isAnswered: true as const, text: set.review, usage } }
   })
   on('prompt.submit', ($, e) => {
     seen.passed.push(e.text)
     set.box = ''
     return { text: e.text }
   })
-  /** Types a draft into the box and leaves it there long enough to be rated. */
+  /** Types a draft into the box and leaves it there long enough to be looked at. */
   const type = async (text: string) => {
     set.box = text
     await time.advance(1000)
@@ -87,145 +52,66 @@ function world(on: On, store: Record<string, unknown> = {}) {
 
 const start = ($: Step) => $.session.start({ cwd: '/work', surface: 'desktop', isInteractive: true })
 const submit = ($: Step, text: string, origin: { kind: string } = composer) => $.prompt.submit({ text, origin, wait: false } as never) as Promise<{ text?: string; drop?: string }>
+const coach = async ($: Step, args = '') => (await $.command.run({ command: 'coach', args } as never)).text
 
-/** The band's text: the coach's lines, then the engine's "engine" beneath. */
-async function bandText($: Step) {
-  const band = await $.ui.mount({ ...BAND, surface: 'desktop', props: bandProps } as never)
+/** The band's text: the coach's line, then the engine's "engine" beneath. */
+async function bandText($: Step, props = bandProps) {
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop', props } as never)
   const text = (await band.find({ type: 'Box' }))?.text ?? (await band.find({ type: 'Text' }))?.text
   await band.unmount()
   return text
 }
 
-async function press($: Step, key: string) {
-  const band = await $.ui.mount({ ...BAND, surface: 'desktop', props: bandProps } as never)
-  await band.press({ key })
-  await band.unmount()
-}
-
-test('a weak draft is rated in the band while it sits in the box, and Enter still sends it as typed', async ($, on) => {
+test('a draft that leaves something to guess gets one quiet line, with no score or button, and Enter sends it as typed', async ($, on) => {
   const { seen, type } = world(on)
   await start($)
   await type(WEAK)
   expect(seen.reviews).toBe(1)
-  expect(await bandText($)).toBe('Draft 2/5 · which page: home or pricing Improve itengine')
+  expect(await bandText($)).toBe('Worth saying: Which page, home or pricing?engine')
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop', props: bandProps } as never)
+  expect(await band.find({ type: 'Button' })).toBeFalsy()
+  await band.unmount()
 
   const r = await submit($, WEAK)
   expect(r.drop).toBeUndefined()
   expect(seen.passed).toEqual([WEAK])
-  expect(seen.reviews).toBe(1)
   expect(await bandText($)).toBe('engine')
 })
 
-test('a good draft shows its rating quietly, and Improve anyway rewrites it', async ($, on) => {
-  const { seen, set, type } = world(on)
-  set.review = goodReview
+test('a good draft, and one with a single small guess, show nothing', async ($, on) => {
+  const { set, seen, type } = world(on)
   await start($)
+  set.review = goodReview
   await type(GOOD)
-  expect(seen.reviews).toBe(1)
-  expect(await bandText($)).toBe('Draft 5/5 Improve anywayengine')
-  await press($, 'coach-improve')
-  expect(seen.filled).toEqual([BETTER])
+  expect(await bandText($)).toBe('engine')
+  set.review = fairReview
+  await type(`${GOOD} and the copy too`)
+  expect(seen.reviews).toBe(2)
   expect(await bandText($)).toBe('engine')
 })
 
-test('a draft is rated once it sits still, not while it is being typed, and an edit clears its rating', async ($, on) => {
+test('a draft is looked at once it sits still, not while it is typed, and an edit clears its line', async ($, on) => {
   const { seen, set, time, type } = world(on)
   await start($)
-  set.box = 'make the landing page'
+  set.box = WEAK
   await time.advance(1000)
-  set.box = 'make the landing page better and fix'
-  await time.advance(1000)
+  await time.settle()
   expect(seen.reviews).toBe(0)
-
   await type(WEAK)
-  expect(await bandText($)).toContain('Draft 2/5')
-  set.box = `${WEAK} on the home page`
-  await time.advance(1000)
-  expect(await bandText($)).toBe('engine')
-})
-
-test('Improve asks in the band, fills the rewrite into the box, and the rewrite is not rated again', async ($, on) => {
-  const { seen, type } = world(on)
-  await start($)
-  await type(WEAK)
-  await press($, 'coach-improve')
-  expect(await bandText($)).toBe('Which page? (1/1)Home Pricing Skipengine')
-  await press($, 'coach-option-0')
-  expect(seen.prompt).toContain('Q: Which page?\nA: Home')
-  expect(seen.filled).toEqual([BETTER])
-  expect(await bandText($)).toBe('engine')
-
-  await type(BETTER)
-  await submit($, BETTER)
   expect(seen.reviews).toBe(1)
-  expect(seen.passed).toEqual([BETTER])
-})
-
-test('an answer can be typed in the band instead of picked', async ($, on) => {
-  const { seen, type } = world(on)
-  await start($)
-  await type(WEAK)
-  await press($, 'coach-improve')
-  const band = await $.ui.mount({ ...BAND, surface: 'desktop', props: bandProps } as never)
-  await band.input({ key: 'coach-own', text: 'The about page' } as never)
-  await band.unmount()
-  expect(seen.prompt).toContain('A: The about page')
-  expect(seen.filled).toEqual([BETTER])
-})
-
-test('a failed rewrite leaves the draft in the box', async ($, on) => {
-  const { seen, set, type } = world(on)
-  set.rewriteFails = true
-  await start($)
-  await type(WEAK)
-  await press($, 'coach-improve')
-  await press($, 'coach-skip')
-  expect(seen.toasts.join('|')).toContain('Could not improve it')
-  expect(seen.filled).toEqual([])
-  expect(set.box).toBe(WEAK)
+  set.box = `${WEAK}, the hero`
+  await time.advance(1000)
+  await time.settle()
   expect(await bandText($)).toBe('engine')
 })
 
-test('short drafts, slash commands and the app\'s own messages are not rated', async ($, on) => {
+test('short drafts, slash commands and the app\'s own messages are not looked at', async ($, on) => {
   const { seen, type } = world(on)
   await start($)
-  await type('yes, do the next one')
-  await type('/coach after and then some more words here')
-  await type('<system-reminder>The session "Worker" you started finished a turn and wrote a report</system-reminder>')
+  await type('yes do the next one')
+  await type('/time export this month for the client please now')
+  await type('<side-sessions-event>a session you started finished its turn</side-sessions-event>')
   expect(seen.reviews).toBe(0)
-})
-
-test('the review sees the last reply from the transcript after a restart, and answers to its questions rate well', async ($, on) => {
-  const { seen, set, type } = world(on)
-  set.transcript = [
-    { role: 'user', text: 'fix the band' },
-    { role: 'assistant', text: 'Two questions: 1) a or b? 2) keep the button?' },
-  ]
-  set.review = goodReview
-  await start($)
-  await type('1 a as you recommend, 2 yes keep the button for now please')
-  expect(seen.prompt).toContain('<last_reply>\nTwo questions: 1) a or b? 2) keep the button?\n</last_reply>')
-  expect(await bandText($)).toBe('Draft 5/5 Improve anywayengine')
-})
-
-test('a long weak draft is offered a brief', async ($, on) => {
-  const { seen, set, type } = world(on)
-  set.review = JSON.stringify({ score: 2, issues: ['no goal'], gaps: ['goal'], questions: [] })
-  await start($)
-  const dump = Array.from({ length: 130 }, (_, i) => `word${i}`).join(' ')
-  await type(dump)
-  expect(await bandText($)).toBe('Brain dump 2/5 · no goal Shape it into a briefengine')
-  // No questions: the brief is written straight away.
-  await press($, 'coach-improve')
-  expect(seen.filled).toEqual([BETTER])
-})
-
-test('a 3/5 counts as good by default', async ($, on) => {
-  const { set, type } = world(on)
-  set.review = JSON.stringify({ score: 3, issues: ['which file'], gaps: ['scope'], questions: [] })
-  await start($)
-  await type(WEAK)
-  expect(await bandText($)).toBe('Draft 3/5 · which file Improve anywayengine')
 })
 
 test('a failed review shows nothing', async ($, on) => {
@@ -236,109 +122,43 @@ test('a failed review shows nothing', async ($, on) => {
   expect(await bandText($)).toBe('engine')
 })
 
-test('sending while a question shows sends the draft as typed and clears the band', async ($, on) => {
-  const { seen, type } = world(on)
+test('the review sees the last reply, even after a restart', async ($, on) => {
+  const { seen, set, type } = world(on)
+  set.transcript = [{ role: 'assistant', text: 'Two options: a) a modal, b) a new page. Which do you want?' }]
   await start($)
-  await type(WEAK)
-  await press($, 'coach-improve')
-  await submit($, WEAK)
-  expect(seen.passed).toEqual([WEAK])
-  expect(seen.filled).toEqual([])
-  expect(await bandText($)).toBe('engine')
+  await type('go with b and keep the same header as the pricing page')
+  expect(seen.prompt).toContain('<last_reply>')
+  expect(seen.prompt).toContain('b) a new page')
 })
 
-test('after mode does not rate drafts; it rates on send and shows the rating above the prompt', async ($, on) => {
-  const { seen, time, type } = world(on)
-  await start($)
-  expect((await $.command.run({ command: 'coach', args: 'after' } as never)).text).toContain('Mode: after')
-  await type(WEAK)
-  expect(seen.reviews).toBe(0)
-  await submit($, WEAK)
-  expect(seen.passed).toEqual([WEAK])
-  await time.settle()
-  expect(await bandText($)).toBe('Last prompt 2/5 · which page: home or pricingengine')
-})
-
-test('after mode tells the review about an attached image it cannot see', async ($, on) => {
-  const { seen, set } = world(on)
-  set.review = goodReview
-  await start($)
-  await $.command.run({ command: 'coach', args: 'after' } as never)
-  await $.prompt.submit({ text: 'Think this might be triggering on the wrong thing, is it just on length?', origin: composer, wait: false, attachments: [{ id: 'img1', kind: 'image' }] } as never)
-  expect(seen.prompt).toContain('The person attached 1 image or file you cannot see')
-})
-
-test('a rated draft that is sent counts toward /coach; off stops rating', async ($, on) => {
+test('/coach sums up what was sent; off stops the hints and on brings them back', async ($, on) => {
   const { seen, type } = world(on)
   await start($)
   await type(WEAK)
   await submit($, WEAK)
-  expect((await $.command.run({ command: 'coach', args: '' } as never)).text).toBe('Last 1 prompts: 2.0/5 on average. Most common gaps: vague scope (1), no done criteria (1). Mode: before.')
-  await $.command.run({ command: 'coach', args: 'off' } as never)
+  expect(await coach($)).toBe('Last 1 prompts: 2.0/5 on average. Most common gaps: vague scope (1), no done criteria (1). Hints are on.')
+  expect(await coach($, 'off')).toMatch(/Hints are off\.$/)
   await type(GOOD)
   expect(seen.reviews).toBe(1)
+  await coach($, 'on')
+  await type(GOOD)
+  expect(seen.reviews).toBe(2)
 })
 
-test('/coach sums up the ratings and the most common gaps', async ($, on) => {
-  world(on, {
-    history: [
-      { score: 2, gaps: ['done', 'scope'] },
-      { score: 3, gaps: ['done'] },
-      { score: 5, gaps: [] },
-    ],
-  })
-  await start($)
-  const r = await $.command.run({ command: 'coach', args: '' } as never)
-  expect(r.text).toBe('Last 3 prompts: 3.3/5 on average. Most common gaps: no done criteria (2), vague scope (1). Mode: before.')
-})
-
-test('without the band, a weak prompt waits on the dialog: questions, then the rewrite is sent in its place', async ($, on) => {
-  const { seen, set } = world(on)
-  set.surfaces = ['mobile']
-  set.answers = ['Improve it', 'Home', 'Send this']
-  await start($)
-  const r = await submit($, WEAK)
-  expect(r.drop).toBeUndefined()
-  expect(seen.asked[0]).toBe('This prompt rates 2/5: which page: home or pricing; what "off" means. Improve it first?')
-  expect(seen.asked[1]).toBe('Which page?')
-  expect(seen.asked[2]).toBe(`${BETTER}\n\nSend this instead of your original?`)
-  expect(seen.prompt).toContain('A: Home')
-  expect(seen.passed).toEqual([BETTER])
-  expect(seen.filled).toEqual([])
-})
-
-test('without the band, Send as is, Send my original and a dismissed dialog all send the prompt as typed', async ($, on) => {
-  const { seen, set } = world(on)
-  set.surfaces = []
-  await start($)
-  set.answers = ['Send as is']
-  await submit($, WEAK)
-  set.answers = ['Improve it', 'Pricing', 'Send my original']
-  await submit($, WEAK)
-  set.answers = [null]
-  await submit($, WEAK)
-  expect(seen.passed).toEqual([WEAK, WEAK, WEAK])
-  expect(seen.rewrites).toBe(1)
-})
-
-test('without the band, a good prompt goes straight through and still counts toward /coach', async ($, on) => {
-  const { seen, set } = world(on)
-  set.surfaces = ['mobile']
-  set.review = goodReview
-  await start($)
-  await submit($, GOOD)
-  expect(seen.asked).toEqual([])
-  expect(seen.passed).toEqual([GOOD])
-  expect((await $.command.run({ command: 'coach', args: '' } as never)).text).toContain('Last 1 prompts: 5.0/5')
-})
-
-test('a long reason is clipped to the band\'s width, since the desktop wraps rather than truncates', async ($, on) => {
-  const { set, type } = world(on)
-  set.review = JSON.stringify({ score: 1, issues: ['Unclear which workstreams or flows relate to the 3.6.0 release and what progress means here'], gaps: ['scope'], questions: [] })
+test('a mode saved by 0.6 carries over: off stays off', async ($, on) => {
+  const { seen, type } = world(on, { mode: 'off' })
   await start($)
   await type(WEAK)
-  const band = await $.ui.mount({ ...BAND, surface: 'desktop', props: { ...bandProps, bodyColumns: 60 } } as never)
-  const text = (await band.find({ type: 'Box' }))?.text ?? ''
-  await band.unmount()
-  expect(text).toBe('Draft 1/5 · Unclear which workstreams or flows relate to th… Improve itengine')
+  expect(seen.reviews).toBe(0)
+  expect(await coach($)).toBe('No prompts looked at yet. Hints are off.')
+})
+
+test('a long hint is clipped to the band\'s width', async ($, on) => {
+  const { set, type } = world(on)
+  set.review = JSON.stringify({ score: 1, issues: [`Which ${'very '.repeat(60)}specific page?`], gaps: ['scope'] })
+  await start($)
+  await type(WEAK)
+  const text = (await bandText($, { ...bandProps, bodyColumns: 40 }))!.replace(/engine$/, '')
+  expect(text.length).toBeLessThanOrEqual(52)
+  expect(text.endsWith('…')).toBe(true)
 })

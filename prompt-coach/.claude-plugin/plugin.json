@@ -1,19 +1,19 @@
 {
   "name": "prompt-coach",
-  "version": "0.6.0",
-  "description": "Rates your draft while it sits in the prompt box, says what is missing when it is weak, and offers to improve it with a question or two. Never holds a prompt back in the terminal or desktop app; in a cloud session it asks in a card as you send. Long weak drafts get shaped into a brief.",
+  "version": "0.7.0",
+  "description": "Quiet hints on your draft: when a prompt in the box leaves something real to guess, one dim line says what is worth adding. No scores, no buttons, never holds a prompt back.",
   "types": "./types/index.d.ts",
   "userConfig": {
     "mode": {
       "type": "string",
-      "title": "When to check",
-      "description": "before: rate the draft in the prompt box as you type and offer to improve a weak one; after: rate each prompt once it is sent and show the rating above the prompt; off",
-      "default": "before"
+      "title": "Hints",
+      "description": "on: a quiet line under a draft that leaves something to guess; off: no hints",
+      "default": "on"
     },
     "threshold": {
       "type": "number",
-      "title": "Offer below",
-      "description": "Offer to improve a prompt rated below this score (1 to 5); 3 offers on 1 and 2",
+      "title": "Hint below",
+      "description": "Hint on drafts rated below this score (1 to 5); 3 hints on 1 and 2",
       "default": 3
     }
   },
