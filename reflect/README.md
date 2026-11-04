@@ -11,6 +11,8 @@ When you correct Claude in a way that should stick, a line above the prompt offe
 
 **What it costs.** Only short prompts that read like a correction ("no", "don't", "instead", "always", "I said", …) are checked at all. Those get one small Haiku call to tell a lasting rule from a one-off fix, and a lasting rule gets one more to draft the line. The check runs beside the turn and never delays it.
 
+In the **Mods** pane (the `mods` mod), the offer sits on top with the same buttons, for cloud sessions where there is no band.
+
 ## Install
 
 ```

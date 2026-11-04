@@ -87,16 +87,21 @@ async function save($: EngineInterface, where: 'project' | 'everywhere') {
 }
 
 /** Characters that fit across the band; the desktop's proportional font fits about a third more than its column count. */
-const width = (e: RenderInput<'AbovePrompt'>) => Math.round((Number(e.props.bodyColumns) || 76) * (e.surface === 'desktop' ? 1.3 : 1))
+// The band above the prompt, or the Mods pane: both draw the same row.
+type Site = RenderInput<'AbovePrompt'> | RenderInput<'Pane'>
+
+const width = (e: Site) => Math.round((Number(e.props.bodyColumns) || 76) * (e.surface === 'desktop' ? 1.3 : 1))
 
 /** Cuts text to n characters with an ellipsis. */
 const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, Math.max(1, n - 1)).trimEnd()}…`)
 
 /** A drafted rule to save, or where one was saved; null otherwise. */
-async function rulesLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
+async function rulesLine($: EngineInterface, e: Site) {
   const b = await read($, band)
-  if (e.props.hasSurvey || !b || isOff) return null
+  if ((e.component === 'AbovePrompt' && e.props.hasSurvey) || !b || isOff) return null
   const { Box, Button, Text } = $.ui.resolve(e)
+  // Keys stay unique beside the other mods' rows in the Mods pane.
+  const k = e.component === 'Pane' ? 'reflect-' : ''
   const cols = width(e)
   if (b.kind === 'saved') return <Text dimColor wrap="truncate-end">Reflect · {clip(b.text, cols - 10)}</Text>
   // One row: the rule is clipped here, since the desktop wraps rather than truncates.
@@ -110,11 +115,11 @@ async function rulesLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
       </Box>
       <Box flexShrink={0}>
         <Text> </Text>
-        <Button key="project" label="This project" onPress={() => void save($, 'project')} />
+        <Button key={`${k}project`} label="This project" onPress={() => void save($, 'project')} />
         <Text> </Text>
-        <Button key="everywhere" label="Everywhere" onPress={() => void save($, 'everywhere')} />
+        <Button key={`${k}everywhere`} label="Everywhere" onPress={() => void save($, 'everywhere')} />
         <Text> </Text>
-        <Button key="skip" label="Skip" onPress={() => void update($, band, () => null)} />
+        <Button key={`${k}skip`} label="Skip" onPress={() => void update($, band, () => null)} />
       </Box>
     </Box>
   )
@@ -159,6 +164,19 @@ export const register: Register = on => {
     const r = await next(e)
     if (r.text) lastReply = r.text
     return r
+  })
+
+  // An ask: on top of the Mods pane, above the rows beneath.
+  on('ui.render', { component: 'Pane', requestId: 'mods' }, async ($, e, next) => {
+    const mine = await rulesLine($, e)
+    if (!mine) return next(e)
+    const { Box } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column">
+        {mine}
+        {await next(e)}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

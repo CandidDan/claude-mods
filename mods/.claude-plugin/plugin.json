@@ -1,0 +1,9 @@
+{
+  "name": "mods",
+  "version": "0.1.0",
+  "description": "One Mods pane where every mod puts what needs you: asks first, then what's next, then status. Opens by itself where there is no band above the prompt, like cloud sessions; /mods opens it anywhere.",
+  "author": {
+    "name": "Dan",
+    "url": "https://github.com/CandidDan"
+  }
+}

@@ -6,10 +6,11 @@ Claude Code mods (function-hook plugins).
 |---|---|
 | [day](day/) | Live **Today** pane — next hours and what to tackle next, replanned from the session |
 | [handoff](handoff/) | `HANDOFF.md` written at session end or when a long chat offers it, picked up by the next session or after `/clear` |
-| [prompt-coach](prompt-coach/) | Rates your draft as you type, says what's missing, offers to improve it |
+| [prompt-coach](prompt-coach/) | Quiet hints: one dim line when a draft leaves something real to guess |
 | [cache-clock](cache-clock/) | Countdown above the prompt until the prompt cache goes cold; opt-in **Keep warm** |
 | [reflect](reflect/) | Offers to save your corrections as one-line rules in `CLAUDE.md` |
 | [timesheet](timesheet/) | Your time with Claude per project or repo, for billing: `/time`, a pane, CSV export; cloud sessions sync through a private repo |
+| [mods](mods/) | One **Mods** pane for cloud sessions: asks, what's next and status from your other mods; `/mods` anywhere |
 | [back](back/) | Jump back to the message you sent: a button under long replies, and `/back` |
 | [tidy](tidy/) | `/tidy` pane of finished sessions idle in the desktop app (no open PR, quiet a day), with an **Archive** button each |
 | [design-standards](design-standards/) | Design Standards v2.1 as skills (core + audit); not a mod, skills only |
@@ -36,6 +37,7 @@ ln -s ~/Projects/mods/skills/design-standards-audit ~/.claude/skills/design-stan
 /plugin install cache-clock@candiddan
 /plugin install reflect@candiddan
 /plugin install timesheet@candiddan
+/plugin install mods@candiddan
 /plugin install tidy@candiddan
 /plugin install design-standards@candiddan
 ```

@@ -8,3 +8,5 @@ Writes `HANDOFF.md` from the session transcript and the next session in that fol
 - After `/clear`, a handoff written in that chat comes back as context
 - Pickup: appended as a hidden context row, with one transcript line saying when it was written
 - Config: file path, auto-on-end, minimum turns, offer threshold (`offerAtPercent`, 0 turns the offer off)
+
+In the **Mods** pane (the `mods` mod), the offer sits on top with the same buttons, for cloud sessions where there is no band.

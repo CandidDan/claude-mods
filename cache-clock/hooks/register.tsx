@@ -108,6 +108,9 @@ async function tick($: EngineInterface) {
   }
 }
 
+// The band above the prompt, or the Mods pane: both draw the same row.
+type Site = RenderInput<'AbovePrompt'> | RenderInput<'Pane'>
+
 async function status($: EngineInterface) {
   const c = await read($, clock)
   const ms = await remaining($)
@@ -119,9 +122,9 @@ async function status($: EngineInterface) {
 }
 
 /** The cache's warm or cold line, or null when there is nothing worth showing. */
-async function cacheLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
+async function cacheLine($: EngineInterface, e: Site) {
   const c = await read($, clock)
-  if (e.props.hasSurvey || e.props.isWorking || !c || (await read($, isHidden))) return null
+  if ((e.component === 'AbovePrompt' && (e.props.hasSurvey || e.props.isWorking)) || !c || (await read($, isHidden))) return null
   const ms = (await remaining($)) ?? 0
   const { Box, Button, Text } = $.ui.resolve(e)
 
@@ -155,7 +158,7 @@ async function cacheLine($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
       </Box>
       <Box flexShrink={0}>
         <Text> </Text>
-        <Button key="warm" label={w ? 'Stop' : 'Keep warm'} onPress={() => void toggleWarm($)} />
+        <Button key={e.component === 'Pane' ? 'cache-warm' : 'warm'} label={w ? 'Stop' : 'Keep warm'} onPress={() => void toggleWarm($)} />
       </Box>
     </Box>
   )
@@ -215,6 +218,19 @@ export const register: Register = (on, options) => {
     if (prev) await learn($, prev, startedAt, u, isShorter).catch(() => undefined)
     await update($, clock, () => ({ lastAt: startedAt, promptTokens: promptTokens(u), model: u.model }))
     return r
+  })
+
+  // Status: at the foot of the Mods pane.
+  on('ui.render', { component: 'Pane', requestId: 'mods' }, async ($, e, next) => {
+    const mine = await cacheLine($, e)
+    if (!mine) return next(e)
+    const { Box } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column">
+        {await next(e)}
+        {mine}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

@@ -203,3 +203,21 @@ test('offerAtPercent 0 never offers', { options: { offerAtPercent: 0 } }, async 
   await $.turn.complete(turn)
   expect(await bandText($)).toBe('engine')
 })
+
+test('the offer shows on top of the Mods pane too', async ($, on) => {
+  mock.clock(on)
+  disk(on, {})
+  const live = context(on)
+  await $.session.start(start)
+  live.tokens = 612_000
+  await $.turn.complete(turn)
+  const pane = await $.ui.mount({
+    plugin: 'handoff',
+    component: 'Pane',
+    requestId: 'mods',
+    surface: 'mobile',
+    props: { title: 'Mods', isFocused: false, bodyColumns: 48, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
+  } as never)
+  expect((await pane.find({ type: 'Box' }))?.text).toBe('Context 612k of 1M · hand off to a fresh chat? Hand off Not nowengine')
+  expect(await pane.find({ key: 'handoff-handoff' })).toBeDefined()
+})

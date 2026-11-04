@@ -155,3 +155,19 @@ test('/cache off hides the line and /cache on brings it back', async ($, on) => 
   expect((await $.command.run({ command: 'cache', args: 'on' })).text).toContain('Cache warm')
   expect(await bandText($)).toMatch(/Cache warm/)
 })
+
+test('the cache line sits at the foot of the Mods pane, Keep warm and all', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  const w = world(on)
+  await start($)
+  await respond($, w, usage(0, 120_000))
+  const pane = await $.ui.mount({
+    plugin: 'cache-clock',
+    component: 'Pane',
+    requestId: 'mods',
+    surface: 'mobile',
+    props: { title: 'Mods', isFocused: false, bodyColumns: 48, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
+  } as never)
+  expect((await pane.find({ type: 'Box' }))?.text).toMatch(/^engineCache warm · 5m left of 5m\?/)
+  expect(await pane.find({ key: 'cache-warm' })).toBeDefined()
+})

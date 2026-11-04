@@ -18,7 +18,7 @@
     {
       "name": "prompt-coach",
       "source": "./prompt-coach",
-      "description": "Rates your draft as you type, says what is missing, and offers to improve it"
+      "description": "Quiet hints: one dim line when a draft in the prompt box leaves something real to guess"
     },
     {
       "name": "cache-clock",
@@ -44,6 +44,11 @@
       "name": "back",
       "source": "./back",
       "description": "Jump back to the message you sent: a button under long replies, and /back from anywhere"
+    },
+    {
+      "name": "mods",
+      "source": "./mods",
+      "description": "One Mods pane for cloud sessions: asks, what's next and status from your other mods; /mods opens it anywhere"
     },
     {
       "name": "tidy",

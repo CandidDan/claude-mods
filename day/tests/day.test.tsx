@@ -220,3 +220,31 @@ test('with no pane on the surface, the whole plan comes back in the reply', asyn
   expect(ran.text).toContain('**Schedule** 14:00 Runlist · 16:00 Call with Matt')
   expect(ran.text).not.toContain('Today pane')
 })
+
+test('Now, the one after it and the way to the whole day sit in the Mods pane', async ($, on) => {
+  mock.clock(on, { now: Date.UTC(2026, 9, 8, 3, 0) })
+  const opened: string[] = []
+  on('tool.list', () => ({ value: [] }))
+  on('ui.open', ($, e) => {
+    opened.push(e.id)
+    return { value: { isPlaced: true } }
+  })
+  on('ui.status', () => ({ value: undefined }))
+  on('command.register', () => ({ value: {} }))
+  on('model.fork', () => ({ value: { isAnswered: true as const, text: planJson, usage } }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+  await $.command.run({ command: 'today', args: '' })
+  opened.length = 0
+
+  const ui = await $.ui.mount({ ...PANE, requestId: 'mods', surface: 'mobile', props: { ...paneProps, title: 'Mods' } })
+  const text = (await ui.find({ type: 'Box' }))?.text ?? ''
+  expect(text).toContain('Now Finish the conference runlist60m · claude  Start Done')
+  expect(text).toContain('Then Reply to Leah')
+  await ui.press({ key: 'day-done' })
+  expect((await ui.find({ type: 'Box' }))?.text).toContain('Now Reply to Leah')
+  await ui.press({ key: 'day-today' })
+  expect(opened).toEqual(['day'])
+})

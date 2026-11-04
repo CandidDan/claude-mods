@@ -174,13 +174,18 @@ async function snooze($: EngineInterface) {
   await update($, offer, () => null)
 }
 
+// The band above the prompt, or the Mods pane: both draw the same row.
+type Site = RenderInput<'AbovePrompt'> | RenderInput<'Pane'>
+
 const k = (n: number) => (n >= 1_000_000 ? `${Math.round(n / 100_000) / 10}M` : `${Math.round(n / 1000)}k`)
 
 /** The handoff offer and its progress, or null when there is none. */
-async function offerLine($: EngineInterface, e: RenderInput<'AbovePrompt'>, file: string) {
+async function offerLine($: EngineInterface, e: Site, file: string) {
   const o = await read($, offer)
-  if (e.props.hasSurvey || e.props.isWorking || !o) return null
+  if ((e.component === 'AbovePrompt' && (e.props.hasSurvey || e.props.isWorking)) || !o) return null
   const { Box, Button, Text } = $.ui.resolve(e)
+  // Keys stay unique beside the other mods' rows in the Mods pane.
+  const p = e.component === 'Pane' ? 'handoff-' : ''
   if (o.kind === 'writing') return <Text dimColor>Writing the handoff…</Text>
   // One row each: the text cuts off with an ellipsis before the buttons give way.
   if (o.kind === 'written') {
@@ -193,7 +198,7 @@ async function offerLine($: EngineInterface, e: RenderInput<'AbovePrompt'>, file
         </Box>
         <Box flexShrink={0}>
           <Text> </Text>
-          <Button key="dismiss" label="OK" onPress={() => void update($, offer, () => null)} />
+          <Button key={`${p}dismiss`} label="OK" onPress={() => void update($, offer, () => null)} />
         </Box>
       </Box>
     )
@@ -205,9 +210,9 @@ async function offerLine($: EngineInterface, e: RenderInput<'AbovePrompt'>, file
       </Box>
       <Box flexShrink={0}>
         <Text> </Text>
-        <Button key="handoff" label="Hand off" onPress={() => void handOff($, file)} />
+        <Button key={`${p}handoff`} label="Hand off" onPress={() => void handOff($, file)} />
         <Text> </Text>
-        <Button key="snooze" label="Not now" onPress={() => void snooze($)} />
+        <Button key={`${p}snooze`} label="Not now" onPress={() => void snooze($)} />
       </Box>
     </Box>
   )
@@ -250,6 +255,19 @@ export const register: Register = (on, options) => {
     await update($, offer, () => null)
     const text = await noteFor($, file).catch(() => '')
     return text ? { ...r, additionalContext: [...(r.additionalContext ?? []), text] } : r
+  })
+
+  // An ask: on top of the Mods pane.
+  on('ui.render', { component: 'Pane', requestId: 'mods' }, async ($, e, next) => {
+    const mine = await offerLine($, e, file)
+    if (!mine) return next(e)
+    const { Box } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column">
+        {mine}
+        {await next(e)}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
